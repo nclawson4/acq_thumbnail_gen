@@ -40,9 +40,10 @@ export async function frameSubjectHalf(
   //   - bodyLeftPct/bodyRightPct → torso silhouette edges, midpoint = horizontal anchor
   const headTop = (bbox.headTopPct / 100) * srcH;
   const bodyBottom = (bbox.bodyBottomPct / 100) * srcH;
-  const bodyLeft = (bbox.bodyLeftPct / 100) * srcW;
-  const bodyRight = (bbox.bodyRightPct / 100) * srcW;
-  const bodyCx = (bodyLeft + bodyRight) / 2;
+  // Anchor horizontally on the FACE center — most reliable single point Claude
+  // detects. Body-edges midpoint was including adjacent props (easels) and
+  // drifting the crop off-subject.
+  const bodyCx = (bbox.facePct.cxPct / 100) * srcW;
 
   // Vertical extent (head top → target body landmark) + 8% padding above the head.
   // No floor: trust Claude's landmark values. If verification later finds the
