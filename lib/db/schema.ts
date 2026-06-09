@@ -12,6 +12,7 @@ export const runs = pgTable(
   "runs",
   {
     id: text("id").primaryKey(),
+    workflowRunId: text("workflow_run_id"),
     youtubeUrl: text("youtube_url").notNull(),
     youtubeId: text("youtube_id").notNull(),
     videoTitle: text("video_title"),

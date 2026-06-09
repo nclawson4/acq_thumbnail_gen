@@ -18,30 +18,6 @@ export async function updateRunStep(args: {
     .where(eq(schema.runs.id, args.runId));
 }
 
-export async function ensureRunStep(args: {
-  runId: string;
-  youtubeUrl: string;
-  youtubeId: string;
-  styleId: string | null;
-  hostSide: "left" | "right";
-  accessMode: "demo" | "byok";
-}): Promise<void> {
-  "use step";
-  await getDb()
-    .insert(schema.runs)
-    .values({
-      id: args.runId,
-      youtubeUrl: args.youtubeUrl,
-      youtubeId: args.youtubeId,
-      styleId: args.styleId,
-      hostSide: args.hostSide,
-      status: "running",
-      currentStep: "fetch_thumbnail",
-      accessMode: args.accessMode,
-    })
-    .onConflictDoNothing({ target: schema.runs.id });
-}
-
 export async function loadStyleStep(args: {
   styleId: string | null;
 }): Promise<{ id: string; styleGuide: unknown } | null> {

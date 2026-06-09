@@ -3,7 +3,6 @@ import type { ProviderKeys } from "@/lib/ai/providers";
 import { StyleGuideSchema, TWO_HOST_DEFAULT_STYLE, type StyleGuide } from "@/lib/style";
 import { youtubeIdFromUrl } from "@/lib/utils";
 import {
-  ensureRunStep,
   loadStyleStep,
   updateRunStep,
 } from "./steps/persistence";
@@ -59,15 +58,6 @@ export async function generateThumbnailWorkflow(
     throw new Error(`Invalid YouTube URL: ${input.videoUrl}`);
   }
 
-  await ensureRunStep({
-    runId: input.runId,
-    youtubeUrl: input.videoUrl,
-    youtubeId,
-    styleId: input.styleId,
-    hostSide: input.hostSide,
-    accessMode: input.accessMode,
-  });
-
   // Resolve style
   await emit({ type: "step", step: "load_style", status: "started" });
   const stylePreset = await loadStyleStep({ styleId: input.styleId });
@@ -79,8 +69,8 @@ export async function generateThumbnailWorkflow(
   await emit({ type: "step", step: "load_style", status: "completed", data: { name: stylePreset?.id ?? "default" } });
 
   // 1. Fetch thumbnail
-  await emit({ type: "step", step: "fetch_thumbnail", status: "started" });
   await updateRunStep({ runId: input.runId, patch: { currentStep: "fetch_thumbnail" } });
+  await emit({ type: "step", step: "fetch_thumbnail", status: "started" });
   const thumb = await fetchThumbnailStep({
     runId: input.runId,
     videoUrl: input.videoUrl,
@@ -97,6 +87,7 @@ export async function generateThumbnailWorkflow(
   });
 
   // 2. Fetch transcript (in parallel-ish — sequential here for simpler workflow)
+  await updateRunStep({ runId: input.runId, patch: { currentStep: "fetch_transcript" } });
   await emit({ type: "step", step: "fetch_transcript", status: "started" });
   const transcript = await fetchTranscriptStep({
     runId: input.runId,
@@ -127,6 +118,7 @@ export async function generateThumbnailWorkflow(
   });
 
   // 4. Crop halves
+  await updateRunStep({ runId: input.runId, patch: { currentStep: "crop_halves" } });
   await emit({ type: "step", step: "crop_halves", status: "started" });
   const halves = await cropHalvesStep({
     runId: input.runId,
@@ -141,6 +133,7 @@ export async function generateThumbnailWorkflow(
   });
 
   // 5. Quality check + frame scrub fallback (sequential for simplicity)
+  await updateRunStep({ runId: input.runId, patch: { currentStep: "quality_check" } });
   await emit({ type: "step", step: "quality_check", status: "started" });
   const leftQuality = await qualityCheckStep({
     runId: input.runId,
@@ -167,6 +160,7 @@ export async function generateThumbnailWorkflow(
   let rightBase64 = halves.rightBase64;
 
   if (leftQuality.needsFrameScrub) {
+    await updateRunStep({ runId: input.runId, patch: { currentStep: "scrub_left" } });
     await emit({ type: "step", step: "scrub_left", status: "started" });
     const scrubbed = await scrubFramesStep({
       runId: input.runId,
@@ -186,6 +180,7 @@ export async function generateThumbnailWorkflow(
     });
   }
   if (rightQuality.needsFrameScrub) {
+    await updateRunStep({ runId: input.runId, patch: { currentStep: "scrub_right" } });
     await emit({ type: "step", step: "scrub_right", status: "started" });
     const scrubbed = await scrubFramesStep({
       runId: input.runId,

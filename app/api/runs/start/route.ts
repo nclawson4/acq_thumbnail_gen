@@ -10,7 +10,8 @@ import {
 } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { assertDemoBudget } from "@/lib/cost";
-import { isValidYoutubeUrl } from "@/lib/utils";
+import { isValidYoutubeUrl, youtubeIdFromUrl } from "@/lib/utils";
+import { getDb, schema } from "@/lib/db";
 
 const BodySchema = z.object({
   mode: z.enum(["demo", "byok"]),
@@ -89,6 +90,7 @@ export async function POST(request: Request) {
 
   const keys = resolveAiKeys(grant);
   const runId = crypto.randomUUID();
+  const youtubeId = youtubeIdFromUrl(parsed.data.videoUrl)!;
 
   const run = await start(generateThumbnailWorkflow, [
     {
@@ -101,6 +103,24 @@ export async function POST(request: Request) {
       useGeminiCompose: parsed.data.useGeminiCompose,
     },
   ]);
+
+  await getDb()
+    .insert(schema.runs)
+    .values({
+      id: runId,
+      workflowRunId: run.runId,
+      youtubeUrl: parsed.data.videoUrl,
+      youtubeId,
+      styleId: parsed.data.styleId ?? null,
+      hostSide: parsed.data.hostSide,
+      status: "running",
+      currentStep: "fetch_thumbnail",
+      accessMode: grant.mode,
+    })
+    .onConflictDoUpdate({
+      target: schema.runs.id,
+      set: { workflowRunId: run.runId, updatedAt: new Date() },
+    });
 
   return NextResponse.json({ runId, workflowRunId: run.runId });
 }
