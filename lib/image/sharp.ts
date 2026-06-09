@@ -33,28 +33,26 @@ export async function frameSubjectHalf(
   const targetH = THUMB_HEIGHT;
   const targetAR = targetW / targetH;
 
-  // Face center in source pixel coords
+  // Face-anchored crop. Ignore Claude's bbox dimensions (often too generous,
+  // including adjacent props/backdrops) and use only the face center.
+  // Crop a fixed-fraction window of source around the face so the face is
+  // a predictable size in the output.
   const faceCx = (bbox.facePct.cxPct / 100) * srcW;
   const faceCy = (bbox.facePct.cyPct / 100) * srcH;
 
-  // Bbox in source pixel coords
-  const bboxW = (bbox.wPct / 100) * srcW;
-  const bboxH = (bbox.hPct / 100) * srcH;
-
-  // Tight framing: subject occupies ~88% of the output frame height
-  // (head + visible torso fills the frame with minimal background)
-  let cropH = bboxH / 0.88;
+  // Crop height = 60% of source height (zoom 1.67x). Face will occupy
+  // roughly 25-30% of output height after centering at 35%.
+  let cropH = srcH * 0.6;
   let cropW = cropH * targetAR;
-
-  // Width must comfortably fit the subject — at least 1.05× their bbox width
-  if (cropW < bboxW * 1.05) {
-    cropW = bboxW * 1.05;
+  if (cropW > srcW * 0.5) {
+    // Don't exceed half the source width — otherwise the two crops overlap.
+    cropW = srcW * 0.5;
     cropH = cropW / targetAR;
   }
 
-  // Center crop around face (horizontally) and face-at-35% (vertically)
+  // Center crop around face (horizontally) and face-at-32% (vertically)
   let cropX = Math.round(faceCx - cropW / 2);
-  let cropY = Math.round(faceCy - cropH * 0.35);
+  let cropY = Math.round(faceCy - cropH * 0.32);
 
   // Clamp to image bounds, shifting rather than shrinking
   if (cropX < 0) cropX = 0;
