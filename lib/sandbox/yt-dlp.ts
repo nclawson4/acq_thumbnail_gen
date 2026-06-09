@@ -113,6 +113,16 @@ export async function scrubFrames(
       "-c",
       `yt-dlp --no-warnings -f "best[height<=720]" -o /tmp/video.mp4 "${videoUrl}"`,
     ]);
+    const check = await sandbox.runCommand("sh", [
+      "-c",
+      `stat -c %s /tmp/video.mp4 2>/dev/null || echo 0`,
+    ]);
+    const size = Number((await check.stdout()).trim()) || 0;
+    if (size < 100_000) {
+      throw new Error(
+        `yt-dlp failed to download video (got ${size} bytes) — likely YouTube bot wall`,
+      );
+    }
     const meta = await sandbox.runCommand("sh", [
       "-c",
       `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 /tmp/video.mp4`,
@@ -128,7 +138,11 @@ export async function scrubFrames(
         `ffmpeg -y -ss ${t.toFixed(2)} -i /tmp/video.mp4 -vframes 1 -q:v 3 ${frameOut} 2>/dev/null`,
       ]);
       const b64 = await sandbox.runCommand("base64", ["-w", "0", frameOut]);
-      buffers.push(Buffer.from((await b64.stdout()).trim(), "base64"));
+      const buf = Buffer.from((await b64.stdout()).trim(), "base64");
+      if (buf.length === 0) {
+        throw new Error(`ffmpeg produced empty frame ${i}`);
+      }
+      buffers.push(buf);
     }
     return buffers;
   } finally {

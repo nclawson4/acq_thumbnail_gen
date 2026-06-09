@@ -163,42 +163,62 @@ export async function generateThumbnailWorkflow(
   if (leftQuality.needsFrameScrub) {
     await updateRunStep({ runId: input.runId, patch: { currentStep: "scrub_left" } });
     await emit({ type: "step", step: "scrub_left", status: "started" });
-    const scrubbed = await scrubFramesStep({
-      runId: input.runId,
-      videoUrl: input.videoUrl,
-      side: "left",
-      count: 5,
-      personDescription: crop.leftPersonDescription,
-      keys: input.keys,
-      accessMode: input.accessMode,
-    });
-    leftBase64 = scrubbed.chosenBase64;
-    await emit({
-      type: "step",
-      step: "scrub_left",
-      status: "completed",
-      data: { rationale: scrubbed.rationale },
-    });
+    try {
+      const scrubbed = await scrubFramesStep({
+        runId: input.runId,
+        videoUrl: input.videoUrl,
+        side: "left",
+        count: 5,
+        personDescription: crop.leftPersonDescription,
+        keys: input.keys,
+        accessMode: input.accessMode,
+      });
+      leftBase64 = scrubbed.chosenBase64;
+      await emit({
+        type: "step",
+        step: "scrub_left",
+        status: "completed",
+        data: { rationale: scrubbed.rationale },
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await emit({
+        type: "step",
+        step: "scrub_left",
+        status: "completed",
+        data: { skipped: true, reason: msg },
+      });
+    }
   }
   if (rightQuality.needsFrameScrub) {
     await updateRunStep({ runId: input.runId, patch: { currentStep: "scrub_right" } });
     await emit({ type: "step", step: "scrub_right", status: "started" });
-    const scrubbed = await scrubFramesStep({
-      runId: input.runId,
-      videoUrl: input.videoUrl,
-      side: "right",
-      count: 5,
-      personDescription: crop.rightPersonDescription,
-      keys: input.keys,
-      accessMode: input.accessMode,
-    });
-    rightBase64 = scrubbed.chosenBase64;
-    await emit({
-      type: "step",
-      step: "scrub_right",
-      status: "completed",
-      data: { rationale: scrubbed.rationale },
-    });
+    try {
+      const scrubbed = await scrubFramesStep({
+        runId: input.runId,
+        videoUrl: input.videoUrl,
+        side: "right",
+        count: 5,
+        personDescription: crop.rightPersonDescription,
+        keys: input.keys,
+        accessMode: input.accessMode,
+      });
+      rightBase64 = scrubbed.chosenBase64;
+      await emit({
+        type: "step",
+        step: "scrub_right",
+        status: "completed",
+        data: { rationale: scrubbed.rationale },
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await emit({
+        type: "step",
+        step: "scrub_right",
+        status: "completed",
+        data: { skipped: true, reason: msg },
+      });
+    }
   }
 
   // 6. Upscale halves
