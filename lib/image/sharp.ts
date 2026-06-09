@@ -33,24 +33,24 @@ export async function frameSubjectHalf(
   const targetH = THUMB_HEIGHT;
   const targetAR = targetW / targetH;
 
-  // Head-bbox-anchored crop. Claude returns a tight bbox around just the
-  // head (hair to chin). Scale the crop so the head fills ~28% of the output
-  // height, head center at 32% from top — a clean YouTube portrait frame.
+  // Head-bbox-anchored crop. Frame each subject to "mid-stomach to head":
+  //   - 0.5 head-heights of padding above the top of the head
+  //   - 1 head-height for the head itself
+  //   - 2.5 head-heights below the chin (covers neck → chest → mid-stomach)
+  // Total cropH = 4 × headH. Same rule for both subjects → heads end up
+  // the same size in output, bodies framed to the same proportions.
   const headCx = ((bbox.xPct + bbox.wPct / 2) / 100) * srcW;
   const headTop = (bbox.yPct / 100) * srcH;
   const headH = (bbox.hPct / 100) * srcH;
-  const headCy = headTop + headH / 2;
 
-  const targetHeadFraction = 0.28;
-  const cropH = Math.round(headH / targetHeadFraction);
+  const cropH = Math.round(4 * headH);
   const cropW = Math.round(cropH * targetAR);
 
-  // Ideal crop centered horizontally on the head, head at 32% from top.
-  // If this window extends past a source edge, sharp.extend() pads the
-  // source so the crop can ALWAYS be centered on the head — guaranteeing
-  // horizontal centering of the subject in the output.
+  // Ideal crop: 0.5 headH above the head, centered horizontally on head.
+  // sharp.extend() pads the source if this window goes off the edge —
+  // guarantees the head is centered in the output regardless of source edges.
   const idealCropX = headCx - cropW / 2;
-  const idealCropY = headCy - cropH * 0.32;
+  const idealCropY = headTop - 0.5 * headH;
 
   const extendLeft = Math.max(0, Math.ceil(-idealCropX));
   const extendTop = Math.max(0, Math.ceil(-idealCropY));

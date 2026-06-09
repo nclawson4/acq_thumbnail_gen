@@ -14,24 +14,28 @@ const BboxSchema = z.object({
     .min(0)
     .max(100)
     .describe(
-      "Left edge of HEAD bounding box as % of image width (head = hair/forehead to chin, including ears)",
+      "Left edge of TIGHT head bbox as % of image width (just the head skin/hairline, NOT shoulders or neck)",
     ),
   yPct: z
     .number()
     .min(0)
     .max(100)
-    .describe("Top edge of HEAD bbox (top of hair) as % of image height"),
+    .describe(
+      "Top edge of head bbox = top of the visible skull/hair, as % of image height. Be tight — don't include space above the head.",
+    ),
   wPct: z
     .number()
     .min(0)
     .max(100)
-    .describe("HEAD width as % of image width (ear to ear)"),
+    .describe(
+      "Head width as % of image width (left ear/temple to right ear/temple). Do NOT include hair sticking out.",
+    ),
   hPct: z
     .number()
     .min(0)
     .max(100)
     .describe(
-      "HEAD height as % of image height (top of hair to bottom of chin). Typically 8-25%.",
+      "Head height as % of image height: from top of hair/skull to bottom of chin ONLY. Do NOT include the neck, shoulders, hair buns above the skull, or any body. Typical: 8-25% of image height.",
     ),
   facePct: z
     .object({
@@ -129,7 +133,7 @@ Return:
 2. \`splitX\`: pixel column to split (left crop = [0, splitX], right crop = [splitX, width]).
 3. \`hostSide\` and a confidence score.
 4. Both person descriptions (clothing, hairstyle, expression).
-5. \`leftBbox\` and \`rightBbox\`: tight bounding box around each person's HEAD ONLY (hair to chin, ear to ear). Use percentages of the image. Do NOT include the body, neck, shoulders, or background — just the head. Also return \`facePct.cxPct\` and \`facePct.cyPct\` — the center of the visible face (eyes/nose region) in % coords. If the face is in profile or partly obscured, still mark where the visible face center is.
+5. \`leftBbox\` and \`rightBbox\`: TIGHT bounding box around each person's HEAD ONLY. The bbox should be JUST the head — from the top of the visible hair/skull DOWN to the bottom of the chin, and from one ear/temple to the other. CRITICAL: do NOT include the neck, shoulders, body, hair buns sticking up above the skull, hats sitting on the head, or any background. Be conservative — tighter is better than looser. Estimate the head height as accurately as you can in percentage of image height; a typical face shot is 12-22%. Also return \`facePct.cxPct\` and \`facePct.cyPct\` — the center of the visible face (eyes/nose region) in % coords.
 
 If the two people overlap, pick the cleanest split. If only one person is visible, set confidence below 0.4 and put a note explaining.`,
           },
