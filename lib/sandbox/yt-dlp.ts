@@ -35,22 +35,48 @@ async function createSandbox(timeoutMs: number) {
   return sandbox;
 }
 
+import { youtubeIdFromUrl } from "@/lib/utils";
+
 export async function fetchThumbnailBuffer(
   videoUrl: string,
 ): Promise<{ buffer: Buffer; title: string }> {
-  const sandbox = await createSandbox(120_000);
+  const id = youtubeIdFromUrl(videoUrl);
+  if (!id) throw new Error(`Invalid YouTube URL: ${videoUrl}`);
+
+  const buffer = await fetchYoutubeThumbnail(id);
+  if (buffer.length === 0) {
+    throw new Error(`No thumbnail available for ${videoUrl}`);
+  }
+  const title = await fetchYoutubeTitle(videoUrl);
+  return { buffer, title };
+}
+
+async function fetchYoutubeThumbnail(videoId: string): Promise<Buffer> {
+  const candidates = [
+    `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
+    `https://i.ytimg.com/vi/${videoId}/sddefault.jpg`,
+    `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+  ];
+  for (const url of candidates) {
+    const res = await fetch(url);
+    if (res.ok) {
+      const arr = await res.arrayBuffer();
+      if (arr.byteLength > 1024) return Buffer.from(arr);
+    }
+  }
+  return Buffer.alloc(0);
+}
+
+async function fetchYoutubeTitle(videoUrl: string): Promise<string> {
   try {
-    const out = "/tmp/thumb.jpg";
-    const cmd = await sandbox.runCommand("sh", [
-      "-c",
-      `yt-dlp --no-warnings --skip-download --print "%(title)s" --write-thumbnail --convert-thumbnails jpg -o "/tmp/thumb.%(ext)s" "${videoUrl}" && cp /tmp/thumb.jpg ${out}`,
-    ]);
-    const title = (await cmd.stdout()).trim();
-    const b64 = await sandbox.runCommand("base64", ["-w", "0", out]);
-    const buffer = Buffer.from((await b64.stdout()).trim(), "base64");
-    return { buffer, title };
-  } finally {
-    await sandbox.stop();
+    const res = await fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(videoUrl)}&format=json`,
+    );
+    if (!res.ok) return "";
+    const json = (await res.json()) as { title?: string };
+    return json.title ?? "";
+  } catch {
+    return "";
   }
 }
 
