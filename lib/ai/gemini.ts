@@ -23,16 +23,11 @@ export async function upscaleReference(
 ): Promise<Buffer> {
   const google = makeGoogle(keys);
   const result = await generateText({
-    model: google.interactions(GEMINI_IMAGE_PRO_MODEL),
+    model: google(GEMINI_IMAGE_PRO_MODEL),
     providerOptions: {
       google: {
-        responseFormat: [
-          {
-            type: "image",
-            aspectRatio: "1:1",
-            imageSize: "4K",
-          },
-        ],
+        responseModalities: ["IMAGE"],
+        imageConfig: { aspectRatio: "1:1", imageSize: "2K" },
       },
     },
     messages: [
@@ -83,16 +78,11 @@ Other:
 - ${args.seedDescription}`;
 
   const result = await generateText({
-    model: google.interactions(GEMINI_IMAGE_PRO_MODEL),
+    model: google(GEMINI_IMAGE_PRO_MODEL),
     providerOptions: {
       google: {
-        responseFormat: [
-          {
-            type: "image",
-            aspectRatio: "16:9",
-            imageSize: "2K",
-          },
-        ],
+        responseModalities: ["IMAGE"],
+        imageConfig: { aspectRatio: "16:9", imageSize: "2K" },
       },
     },
     messages: [
