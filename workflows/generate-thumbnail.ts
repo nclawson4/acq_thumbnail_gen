@@ -58,6 +58,7 @@ export async function generateThumbnailWorkflow(
     throw new Error(`Invalid YouTube URL: ${input.videoUrl}`);
   }
 
+  try {
   // Resolve style
   await emit({ type: "step", step: "load_style", status: "started" });
   const stylePreset = await loadStyleStep({ styleId: input.styleId });
@@ -282,4 +283,13 @@ export async function generateThumbnailWorkflow(
 
   await emit({ type: "done", variants });
   return { runId: input.runId, variants };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await updateRunStep({
+      runId: input.runId,
+      patch: { status: "error", error: message },
+    });
+    await emit({ type: "error", message });
+    throw err;
+  }
 }

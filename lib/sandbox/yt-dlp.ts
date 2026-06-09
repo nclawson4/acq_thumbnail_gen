@@ -17,7 +17,7 @@ function sandboxCredentials() {
 }
 
 async function createSandbox(timeoutMs: number) {
-  const snapshotId = process.env.INGEST_SANDBOX_SNAPSHOT_ID;
+  const snapshotId = process.env.INGEST_SANDBOX_SNAPSHOT_ID?.trim();
   const creds = sandboxCredentials();
   if (snapshotId) {
     return Sandbox.create({
