@@ -34,11 +34,17 @@ export const env = {
   get DATABASE_URL() {
     return required("DATABASE_URL");
   },
-  get UPSTASH_REDIS_REST_URL() {
-    return required("UPSTASH_REDIS_REST_URL");
+  get REDIS_REST_URL() {
+    const v =
+      process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
+    if (!v) throw new Error("Missing UPSTASH_REDIS_REST_URL or KV_REST_API_URL");
+    return v;
   },
-  get UPSTASH_REDIS_REST_TOKEN() {
-    return required("UPSTASH_REDIS_REST_TOKEN");
+  get REDIS_REST_TOKEN() {
+    const v =
+      process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
+    if (!v) throw new Error("Missing UPSTASH_REDIS_REST_TOKEN or KV_REST_API_TOKEN");
+    return v;
   },
   get INGEST_SANDBOX_SNAPSHOT_ID() {
     return optional("INGEST_SANDBOX_SNAPSHOT_ID");
