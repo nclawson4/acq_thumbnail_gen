@@ -127,6 +127,9 @@ export async function generateThumbnailWorkflow(
     splitX: crop.splitX,
     leftBbox: crop.leftBbox,
     rightBbox: crop.rightBbox,
+    bodyFrameLandmark: crop.bodyFrameLandmark,
+    keys: input.keys,
+    accessMode: input.accessMode,
   });
   await emit({
     type: "step",

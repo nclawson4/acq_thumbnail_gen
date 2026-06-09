@@ -83,6 +83,50 @@ export const CropPointsSchema = z.object({
 });
 export type CropPoints = z.infer<typeof CropPointsSchema>;
 
+export const FramingCheckSchema = z.object({
+  bodyCenterXInHalfPct: z
+    .number()
+    .min(0)
+    .max(100)
+    .describe(
+      "Horizontal center of the PERSON's body (midpoint of their visible torso silhouette) as % of THIS half image's width. 50% = perfectly centered. NOT the face, NOT a prop, the actual body silhouette midpoint.",
+    ),
+  bottomBodyPart: z
+    .enum([
+      "above_head",
+      "head",
+      "neck",
+      "shoulders",
+      "armpits",
+      "chest_bottom",
+      "mid_torso",
+      "waistline",
+      "hip_top",
+      "mid_thigh",
+      "knee",
+      "below_knee",
+    ])
+    .describe(
+      "Which body part is right at the BOTTOM EDGE of this image. Be precise — choose the part actually on the bottom-most row of pixels.",
+    ),
+  bottomBodyPartYPctInSource: z
+    .number()
+    .min(0)
+    .max(150)
+    .describe(
+      "If you wanted to crop the original source image so that the bottom edge was at `bottomBodyPart`, what Y % of the ORIGINAL source image would that be? Use the source image (not this half).",
+    ),
+  faceCenterXPctInSource: z
+    .number()
+    .min(0)
+    .max(100)
+    .describe(
+      "Where is THIS person's face center horizontally in the ORIGINAL SOURCE image (not this half), as % of source width.",
+    ),
+  notes: z.string().optional(),
+});
+export type FramingCheck = z.infer<typeof FramingCheckSchema>;
+
 export const QualityRatingSchema = z.object({
   side: z.enum(["left", "right"]),
   rating: z
@@ -173,6 +217,50 @@ If the two people overlap, pick the cleanest split. If only one person is visibl
             image: imageBuffer,
             mediaType: "image/jpeg",
           },
+        ],
+      },
+    ],
+  });
+  return output;
+}
+
+export async function verifyHalfFraming(
+  keys: ProviderKeys,
+  halfBuffer: Buffer,
+  sourceBuffer: Buffer,
+  side: "left" | "right",
+  targetLandmark: string,
+): Promise<FramingCheck> {
+  const anthropic = makeAnthropic(keys);
+  const { output } = await generateText({
+    model: anthropic(CLAUDE_VISION_MODEL),
+    output: Output.object({ schema: FramingCheckSchema }),
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `I am framing a YouTube thumbnail for the ${side}-side host of a two-host video. I want every host's frame to satisfy:
+  (1) face HORIZONTALLY CENTERED in the half (50% ± 10%);
+  (2) bottom-of-frame at the body part "${targetLandmark}" (head should be near the top).
+
+I will show you TWO images:
+- IMAGE 1 = the ORIGINAL source thumbnail (full 16:9).
+- IMAGE 2 = my current crop of the ${side} half.
+
+Evaluate the CURRENT CROP (image 2). Report:
+- \`bodyCenterXInHalfPct\`: where the person's body is centered in image 2.
+- \`bottomBodyPart\`: what body part is at the BOTTOM EDGE of image 2.
+- \`bottomBodyPartYPctInSource\`: looking at the ORIGINAL SOURCE (image 1), what is the Y % of THIS person's "${targetLandmark}" body part in the original source?
+- \`faceCenterXPctInSource\`: looking at the ORIGINAL SOURCE, where is THIS person's face center horizontally (% of full source width).
+
+Be PRECISE. Don't confuse the person with adjacent props (easels, backdrops, microphones, the other person).`,
+          },
+          { type: "text", text: "IMAGE 1 — original source thumbnail:" },
+          { type: "image", image: sourceBuffer, mediaType: "image/jpeg" },
+          { type: "text", text: "IMAGE 2 — current cropped half:" },
+          { type: "image", image: halfBuffer, mediaType: "image/jpeg" },
         ],
       },
     ],

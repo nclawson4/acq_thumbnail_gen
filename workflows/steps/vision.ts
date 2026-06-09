@@ -3,12 +3,17 @@ import {
   pickBestFrame,
   pickQuotes,
   rateCropQuality,
+  verifyHalfFraming,
   type CropPoints,
   type QualityRating,
   type QuoteCandidates,
 } from "@/lib/ai/claude";
 import { putArtifact, blobPaths, fetchArtifactBuffer } from "@/lib/blob";
-import { cropHalvesFromThumbnail, frameSubjectHalf } from "@/lib/image/sharp";
+import {
+  cropHalvesFromThumbnail,
+  frameSubjectHalf,
+  type SubjectBbox,
+} from "@/lib/image/sharp";
 import { scrubFrames } from "@/lib/sandbox/yt-dlp";
 import type { ProviderKeys } from "@/lib/ai/providers";
 import { recordCost, estimateUsd } from "@/lib/cost";
@@ -42,23 +47,110 @@ export async function detectCropStep(args: {
   return result;
 }
 
+async function adjustBbox(
+  bbox: SubjectBbox,
+  srcW: number,
+  srcH: number,
+  bodyCenterXInHalfPct: number,
+  newBodyBottomPctInSource: number,
+): Promise<SubjectBbox> {
+  "use step";
+  // Compute current cropH/cropW from existing bbox
+  const headTop = (bbox.headTopPct / 100) * srcH;
+  const bodyBottom = (bbox.bodyBottomPct / 100) * srcH;
+  const subjectH = Math.max(bodyBottom - headTop, srcH * 0.3);
+  const padTop = subjectH * 0.08;
+  const cropH = subjectH + padTop;
+  const targetAR = 640 / 720;
+  const cropW = cropH * targetAR;
+  // Horizontal shift: bring body from current half% to 50%
+  const shiftSrcPx = (bodyCenterXInHalfPct / 100 - 0.5) * cropW;
+  const deltaPct = (shiftSrcPx / srcW) * 100;
+  return {
+    ...bbox,
+    bodyLeftPct: bbox.bodyLeftPct + deltaPct,
+    bodyRightPct: bbox.bodyRightPct + deltaPct,
+    bodyBottomPct: newBodyBottomPctInSource,
+  };
+}
+
 export async function cropHalvesStep(args: {
   runId: string;
   thumbnailBase64: string;
   splitX: number;
   leftBbox?: CropPoints["leftBbox"];
   rightBbox?: CropPoints["rightBbox"];
-}): Promise<{ leftUrl: string; rightUrl: string; leftBase64: string; rightBase64: string }> {
+  bodyFrameLandmark?: string;
+  keys?: ProviderKeys;
+  accessMode?: "demo" | "byok";
+}): Promise<{
+  leftUrl: string;
+  rightUrl: string;
+  leftBase64: string;
+  rightBase64: string;
+}> {
   "use step";
   const buffer = Buffer.from(args.thumbnailBase64, "base64");
 
   let leftJpeg: Buffer;
   let rightJpeg: Buffer;
-  if (args.leftBbox && args.rightBbox) {
-    const [leftRes, rightRes] = await Promise.all([
-      frameSubjectHalf(buffer, args.leftBbox),
-      frameSubjectHalf(buffer, args.rightBbox),
-    ]);
+  let leftBbox = args.leftBbox;
+  let rightBbox = args.rightBbox;
+
+  if (leftBbox && rightBbox) {
+    let leftRes = await frameSubjectHalf(buffer, leftBbox);
+    let rightRes = await frameSubjectHalf(buffer, rightBbox);
+
+    // Verify + correct framing up to 2 iterations
+    if (args.bodyFrameLandmark && args.keys) {
+      const srcW = leftRes.meta.srcW;
+      const srcH = leftRes.meta.srcH;
+      for (let iter = 0; iter < 2; iter++) {
+        const [leftCheck, rightCheck] = await Promise.all([
+          verifyHalfFraming(
+            args.keys,
+            leftRes.jpeg,
+            buffer,
+            "left",
+            args.bodyFrameLandmark,
+          ),
+          verifyHalfFraming(
+            args.keys,
+            rightRes.jpeg,
+            buffer,
+            "right",
+            args.bodyFrameLandmark,
+          ),
+        ]);
+        const leftCentered =
+          Math.abs(leftCheck.bodyCenterXInHalfPct - 50) <= 10 &&
+          leftCheck.bottomBodyPart === args.bodyFrameLandmark;
+        const rightCentered =
+          Math.abs(rightCheck.bodyCenterXInHalfPct - 50) <= 10 &&
+          rightCheck.bottomBodyPart === args.bodyFrameLandmark;
+        if (leftCentered && rightCentered) break;
+        if (!leftCentered) {
+          leftBbox = await adjustBbox(
+            leftBbox,
+            srcW,
+            srcH,
+            leftCheck.bodyCenterXInHalfPct,
+            leftCheck.bottomBodyPartYPctInSource,
+          );
+          leftRes = await frameSubjectHalf(buffer, leftBbox);
+        }
+        if (!rightCentered) {
+          rightBbox = await adjustBbox(
+            rightBbox,
+            srcW,
+            srcH,
+            rightCheck.bodyCenterXInHalfPct,
+            rightCheck.bottomBodyPartYPctInSource,
+          );
+          rightRes = await frameSubjectHalf(buffer, rightBbox);
+        }
+      }
+    }
     leftJpeg = leftRes.jpeg;
     rightJpeg = rightRes.jpeg;
   } else {
