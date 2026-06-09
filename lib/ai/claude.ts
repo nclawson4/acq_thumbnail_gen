@@ -191,9 +191,9 @@ Return:
 3. \`hostSide\` and a confidence score.
 4. Both person descriptions (clothing, hairstyle, expression).
 5. \`bodyFrameLandmark\`: ONE landmark name from {shoulders, armpits, chest_bottom, waistline, hip_top, mid_thigh} that you will apply IDENTICALLY to both subjects for the bottom of frame.
-   - Goal: both crops show each person from head down to the SAME body part. Final thumbnail bottom must hit that EXACT named landmark on each person.
-   - Pick the landmark that is plausibly visible (or short-extrapolatable) on BOTH. If one person is sitting and their waist is hidden by a table, pick a higher landmark like \`chest_bottom\` or \`armpits\` that works for BOTH.
-   - Default to \`waistline\` if both are visible to that level. Otherwise pick the lowest landmark that works for both.
+   - PROCESS: First look at BOTH subjects in the source thumbnail. For EACH subject, ask: "How far down their body is visible in the SOURCE?" If one subject's source-view ends at the neck/shoulders and the other ends at the waist, the landmark MUST be at or above the higher one's cutoff.
+   - Pick the LOWEST landmark that is clearly visible (or trivially extrapolatable, <0.5 head-height below the cutoff) on BOTH subjects. NEVER pick a landmark that requires fabricating significant body content for one subject.
+   - Examples: source has left = face-only close-up, right = full torso → pick \`shoulders\` (the LOWEST landmark working for both). Source has both visible to mid-torso → pick \`waistline\` or \`chest_bottom\`.
 
 6. \`leftBbox\` and \`rightBbox\`: framing landmarks for each PERSON. CRITICAL — only identify ACTUAL HUMAN BEINGS. Do NOT treat easels, whiteboards, microphones, podiums, screens, or backdrop graphics as a person.
 

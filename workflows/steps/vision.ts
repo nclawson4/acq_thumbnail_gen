@@ -105,7 +105,7 @@ export async function cropHalvesStep(args: {
     if (args.bodyFrameLandmark && args.keys) {
       const srcW = leftRes.meta.srcW;
       const srcH = leftRes.meta.srcH;
-      for (let iter = 0; iter < 2; iter++) {
+      for (let iter = 0; iter < 3; iter++) {
         const [leftCheck, rightCheck] = await Promise.all([
           verifyHalfFraming(
             args.keys,
