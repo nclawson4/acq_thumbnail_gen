@@ -40,9 +40,9 @@ export async function frameSubjectHalf(
   const faceCx = (bbox.facePct.cxPct / 100) * srcW;
   const faceCy = (bbox.facePct.cyPct / 100) * srcH;
 
-  // Crop height = 60% of source height (zoom 1.67x). Face will occupy
-  // roughly 25-30% of output height after centering at 35%.
-  let cropH = srcH * 0.6;
+  // Crop height = 45% of source height (zoom 2.2x). Face will occupy
+  // roughly 35-45% of output height after centering at 32%.
+  let cropH = srcH * 0.45;
   let cropW = cropH * targetAR;
   if (cropW > srcW * 0.5) {
     // Don't exceed half the source width — otherwise the two crops overlap.
