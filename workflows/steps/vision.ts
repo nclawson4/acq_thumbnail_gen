@@ -162,21 +162,12 @@ export async function pickQuotesStep(args: {
   accessMode: "demo" | "byok";
 }): Promise<QuoteCandidates> {
   "use step";
-  if (!args.transcript) {
-    return {
-      quotes: [
-        {
-          text: args.videoTitle?.split(" ").slice(0, 5).join(" ").toUpperCase() ??
-            "NEW EPISODE OUT",
-          wordCount: 4,
-          timestampSec: null,
-          rationale: "Fallback: no transcript available",
-          score: 4,
-        },
-      ] as QuoteCandidates["quotes"],
-    };
-  }
-  const result = await pickQuotes(args.keys, args.transcript, args.videoTitle);
+  // Always call Claude — when transcript is missing, ask it to invent
+  // punchy paraphrases from the title alone. This way we always get
+  // 3+ quotes with proper emphasisWords for the yellow highlight.
+  const transcriptForPrompt = args.transcript ||
+    `[Transcript unavailable — invent 3-5 plausible punchy thumbnail lines based on the video title: "${args.videoTitle ?? "unknown topic"}"]`;
+  const result = await pickQuotes(args.keys, transcriptForPrompt, args.videoTitle);
   await recordCost({
     runId: args.runId,
     step: "pick_quotes",

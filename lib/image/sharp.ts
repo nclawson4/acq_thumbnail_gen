@@ -41,15 +41,14 @@ export async function frameSubjectHalf(
   const bboxW = (bbox.wPct / 100) * srcW;
   const bboxH = (bbox.hPct / 100) * srcH;
 
-  // We want face at ~50% horizontally, ~35% vertically of the output frame
-  // Subject occupies roughly 70% of the output frame height
-  // Compute the crop dimensions
-  let cropH = bboxH / 0.7;
+  // Tight framing: subject occupies ~88% of the output frame height
+  // (head + visible torso fills the frame with minimal background)
+  let cropH = bboxH / 0.88;
   let cropW = cropH * targetAR;
 
-  // Sanity floor — make sure we don't crop tighter than the bbox suggests width-wise
-  if (cropW < bboxW * 1.1) {
-    cropW = bboxW * 1.1;
+  // Width must comfortably fit the subject — at least 1.05× their bbox width
+  if (cropW < bboxW * 1.05) {
+    cropW = bboxW * 1.05;
     cropH = cropW / targetAR;
   }
 

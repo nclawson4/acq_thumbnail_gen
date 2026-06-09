@@ -1,4 +1,5 @@
 import { Resvg } from "@resvg/resvg-js";
+import sharp from "sharp";
 import path from "node:path";
 
 function antonFontPath(): string {
@@ -73,47 +74,66 @@ export async function renderTextOverlay(spec: TextOverlaySpec): Promise<Buffer> 
 
   const padLeft = Math.round(spec.width * 0.04);
 
-  // Each text element rendered with a thick black stroke acting as a halo/shadow
-  // for natural blending against varied backgrounds.
-  const strokeWidth = Math.round(fontSize * 0.08);
+  const lineTexts = (fillOverride?: string) =>
+    lines
+      .map((wordsOnLine, lineIdx) => {
+        const y = blockTopY + (lineIdx + 1) * lineHeight - Math.round(fontSize * 0.15);
+        const tspans = wordsOnLine
+          .map((word, i) => {
+            const cleaned = word.toLowerCase().replace(/[^a-z0-9']/g, "");
+            const isEmph = emphasisLower.has(cleaned);
+            const fill =
+              fillOverride ?? (isEmph ? spec.yellowColor : spec.whiteColor);
+            const prefix = i === 0 ? "" : " ";
+            const displayWord =
+              lineIdx === 0 && i === 0
+                ? `\u201C${word}`
+                : lineIdx === lines.length - 1 && i === wordsOnLine.length - 1
+                  ? `${word}\u201D`
+                  : word;
+            return `<tspan fill="${fill}">${prefix}${escapeXml(displayWord)}</tspan>`;
+          })
+          .join("");
+        return `<text x="${padLeft}" y="${y}" font-family="Anton" font-size="${fontSize}" font-weight="700">${tspans}</text>`;
+      })
+      .join("\n");
 
-  const lineSvgs = lines
-    .map((wordsOnLine, lineIdx) => {
-      const y = blockTopY + (lineIdx + 1) * lineHeight - Math.round(fontSize * 0.15);
-      const tspans = wordsOnLine
-        .map((word, i) => {
-          const cleaned = word.toLowerCase().replace(/[^a-z0-9']/g, "");
-          const isEmph = emphasisLower.has(cleaned);
-          const fill = isEmph ? spec.yellowColor : spec.whiteColor;
-          const prefix = i === 0 ? "" : " ";
-          const displayWord =
-            lineIdx === 0 && i === 0
-              ? `\u201C${word}`
-              : lineIdx === lines.length - 1 && i === wordsOnLine.length - 1
-                ? `${word}\u201D`
-                : word;
-          return `<tspan fill="${fill}">${prefix}${escapeXml(displayWord)}</tspan>`;
-        })
-        .join("");
-      // Render twice: once with thick black stroke (the halo), once with fill on top
-      return `
-        <text x="${padLeft}" y="${y}" font-family="Anton" font-size="${fontSize}" font-weight="700" stroke="black" stroke-width="${strokeWidth}" stroke-linejoin="round" fill="black" opacity="0.65">${tspans.replace(/fill="[^"]*"/g, 'fill="black"')}</text>
-        <text x="${padLeft}" y="${y}" font-family="Anton" font-size="${fontSize}" font-weight="700">${tspans}</text>
-      `;
-    })
-    .join("\n");
+  const wrap = (inner: string) =>
+    `<svg width="${spec.width}" height="${spec.height}" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
 
-  const svg = `<svg width="${spec.width}" height="${spec.height}" xmlns="http://www.w3.org/2000/svg">
-  ${lineSvgs}
-</svg>`;
+  const renderSvg = (svgStr: string) =>
+    Buffer.from(
+      new Resvg(svgStr, {
+        fitTo: { mode: "width", value: spec.width },
+        font: {
+          fontFiles: [fontFile],
+          defaultFontFamily: "Anton",
+          loadSystemFonts: false,
+        },
+      })
+        .render()
+        .asPng(),
+    );
 
-  const resvg = new Resvg(svg, {
-    fitTo: { mode: "width", value: spec.width },
-    font: {
-      fontFiles: [fontFile],
-      defaultFontFamily: "Anton",
-      loadSystemFonts: false,
+  // 1. Sharp colored text
+  const textPng = renderSvg(wrap(lineTexts()));
+  // 2. Black silhouette → blur for soft drop shadow
+  const blackPng = renderSvg(wrap(lineTexts("#000000")));
+  const shadowPng = await sharp(blackPng).blur(8).png().toBuffer();
+
+  // Composite: shadow first, then text on top
+  return sharp({
+    create: {
+      width: spec.width,
+      height: spec.height,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
-  });
-  return Buffer.from(resvg.render().asPng());
+  })
+    .composite([
+      { input: shadowPng, top: 4, left: 0 },
+      { input: textPng, top: 0, left: 0 },
+    ])
+    .png()
+    .toBuffer();
 }
