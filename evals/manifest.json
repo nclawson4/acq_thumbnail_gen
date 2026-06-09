@@ -1,0 +1,29 @@
+{
+  "checks": [
+    {
+      "id": "final_dimensions",
+      "description": "Every final variant is exactly 1280x720 pixels.",
+      "step": "compose_variants"
+    },
+    {
+      "id": "three_variants",
+      "description": "Each run produces exactly 3 final variants.",
+      "step": "compose_variants"
+    },
+    {
+      "id": "crop_confidence",
+      "description": "Crop detection returns confidence >= 0.4. Below that, manual review is required.",
+      "step": "detect_crop"
+    },
+    {
+      "id": "quote_word_count",
+      "description": "Every quote candidate is between 2 and 6 words.",
+      "step": "pick_quotes"
+    },
+    {
+      "id": "transcript_or_fallback",
+      "description": "If transcript is empty, a fallback quote is generated from the title.",
+      "step": "pick_quotes"
+    }
+  ]
+}

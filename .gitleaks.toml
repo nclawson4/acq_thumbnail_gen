@@ -1,0 +1,7 @@
+title = "Thumbnail Studio gitleaks config"
+
+[allowlist]
+description = "Skip example placeholders"
+paths = [
+  '''\.env\.example''',
+]
