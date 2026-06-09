@@ -59,20 +59,19 @@ export async function renderTextOverlay(spec: TextOverlaySpec): Promise<Buffer> 
     ),
   );
 
-  // Aim for ~3-4 words per line for thumbnail impact
-  const maxChars = Math.max(10, Math.round(spec.width / 95));
+  // Allow lines up to ~75% of the frame width
+  const maxChars = Math.max(14, Math.round(spec.width / 48));
   const lines = splitWordsIntoLines(allWords, maxChars);
 
-  // Bigger: 16% of height per line
-  const fontSize = Math.round(spec.height * 0.16);
-  const lineHeight = Math.round(fontSize * 1.02);
+  const fontSize = Math.round(spec.height * 0.14);
+  const lineHeight = Math.round(fontSize * 1.05);
 
-  // Position: text block bottom is at 90% of height (10% bottom padding)
+  // Text block bottom at 92% of height (8% bottom padding), centered horizontally
   const totalTextHeight = lines.length * lineHeight;
-  const blockBottomY = Math.round(spec.height * 0.94);
+  const blockBottomY = Math.round(spec.height * 0.92);
   const blockTopY = blockBottomY - totalTextHeight;
 
-  const padLeft = Math.round(spec.width * 0.04);
+  const centerX = Math.round(spec.width / 2);
 
   const lineTexts = (fillOverride?: string) =>
     lines
@@ -94,9 +93,21 @@ export async function renderTextOverlay(spec: TextOverlaySpec): Promise<Buffer> 
             return `<tspan fill="${fill}">${prefix}${escapeXml(displayWord)}</tspan>`;
           })
           .join("");
-        return `<text x="${padLeft}" y="${y}" font-family="Anton" font-size="${fontSize}" font-weight="700">${tspans}</text>`;
+        return `<text x="${centerX}" y="${y}" text-anchor="middle" font-family="Anton" font-size="${fontSize}" font-weight="700">${tspans}</text>`;
       })
       .join("\n");
+
+  // Scrim: linear gradient overlay, black at bottom → transparent at ~50% height
+  const scrimSvg = `<svg width="${spec.width}" height="${spec.height}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="scrim" x1="0" x2="0" y1="1" y2="0">
+        <stop offset="0%" stop-color="black" stop-opacity="0.78"/>
+        <stop offset="40%" stop-color="black" stop-opacity="0.45"/>
+        <stop offset="100%" stop-color="black" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <rect x="0" y="${Math.round(spec.height * 0.42)}" width="${spec.width}" height="${Math.round(spec.height * 0.58)}" fill="url(#scrim)"/>
+  </svg>`;
 
   const wrap = (inner: string) =>
     `<svg width="${spec.width}" height="${spec.height}" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
@@ -115,13 +126,15 @@ export async function renderTextOverlay(spec: TextOverlaySpec): Promise<Buffer> 
         .asPng(),
     );
 
-  // 1. Sharp colored text
+  // 1. Scrim gradient (black-to-transparent at bottom for contrast behind text)
+  const scrimPng = renderSvg(scrimSvg);
+  // 2. Sharp colored text
   const textPng = renderSvg(wrap(lineTexts()));
-  // 2. Black silhouette → blur for soft drop shadow
+  // 3. Black silhouette → blur for soft drop shadow
   const blackPng = renderSvg(wrap(lineTexts("#000000")));
-  const shadowPng = await sharp(blackPng).blur(8).png().toBuffer();
+  const shadowPng = await sharp(blackPng).blur(6).png().toBuffer();
 
-  // Composite: shadow first, then text on top
+  // Composite: scrim, then shadow, then text on top
   return sharp({
     create: {
       width: spec.width,
@@ -131,7 +144,8 @@ export async function renderTextOverlay(spec: TextOverlaySpec): Promise<Buffer> 
     },
   })
     .composite([
-      { input: shadowPng, top: 4, left: 0 },
+      { input: scrimPng, top: 0, left: 0 },
+      { input: shadowPng, top: 3, left: 0 },
       { input: textPng, top: 0, left: 0 },
     ])
     .png()

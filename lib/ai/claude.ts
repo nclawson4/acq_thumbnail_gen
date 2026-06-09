@@ -13,28 +13,34 @@ const BboxSchema = z.object({
     .number()
     .min(0)
     .max(100)
-    .describe("Left edge of bounding box as % of image width"),
+    .describe(
+      "Left edge of HEAD bounding box as % of image width (head = hair/forehead to chin, including ears)",
+    ),
   yPct: z
     .number()
     .min(0)
     .max(100)
-    .describe("Top edge of bounding box as % of image height"),
+    .describe("Top edge of HEAD bbox (top of hair) as % of image height"),
   wPct: z
     .number()
     .min(0)
     .max(100)
-    .describe("Width as % of image width"),
+    .describe("HEAD width as % of image width (ear to ear)"),
   hPct: z
     .number()
     .min(0)
     .max(100)
-    .describe("Height as % of image height"),
+    .describe(
+      "HEAD height as % of image height (top of hair to bottom of chin). Typically 8-25%.",
+    ),
   facePct: z
     .object({
       cxPct: z.number().min(0).max(100),
       cyPct: z.number().min(0).max(100),
     })
-    .describe("Center of the person's face as % of image"),
+    .describe(
+      "Center of the visible face (eyes/nose area) as % of image. If face is in profile or partly obscured, this is still the visible-face center.",
+    ),
 });
 export type Bbox = z.infer<typeof BboxSchema>;
 
@@ -123,7 +129,7 @@ Return:
 2. \`splitX\`: pixel column to split (left crop = [0, splitX], right crop = [splitX, width]).
 3. \`hostSide\` and a confidence score.
 4. Both person descriptions (clothing, hairstyle, expression).
-5. \`leftBbox\` and \`rightBbox\`: tight bounding boxes around each person's HEAD + visible TORSO (NOT the full body, NOT background). Use percentages of the image. Each bbox must include face + neck + shoulders + upper chest. Exclude as much background and the other person as possible. Also return \`facePct.cxPct\` and \`facePct.cyPct\` — the center of each person's face in % coords.
+5. \`leftBbox\` and \`rightBbox\`: tight bounding box around each person's HEAD ONLY (hair to chin, ear to ear). Use percentages of the image. Do NOT include the body, neck, shoulders, or background — just the head. Also return \`facePct.cxPct\` and \`facePct.cyPct\` — the center of the visible face (eyes/nose region) in % coords. If the face is in profile or partly obscured, still mark where the visible face center is.
 
 If the two people overlap, pick the cleanest split. If only one person is visible, set confidence below 0.4 and put a note explaining.`,
           },

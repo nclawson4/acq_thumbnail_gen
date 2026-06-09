@@ -33,26 +33,32 @@ export async function frameSubjectHalf(
   const targetH = THUMB_HEIGHT;
   const targetAR = targetW / targetH;
 
-  // Face-anchored crop. Ignore Claude's bbox dimensions (often too generous,
-  // including adjacent props/backdrops) and use only the face center.
-  // Crop a fixed-fraction window of source around the face so the face is
-  // a predictable size in the output.
-  const faceCx = (bbox.facePct.cxPct / 100) * srcW;
-  const faceCy = (bbox.facePct.cyPct / 100) * srcH;
+  // Head-bbox-anchored crop. Claude returns a tight bbox around just the
+  // head (hair to chin). Scale the crop so the head fills ~28% of the output
+  // height, head center at 32% from top — a clean YouTube portrait frame.
+  const headCx = ((bbox.xPct + bbox.wPct / 2) / 100) * srcW;
+  const headTop = (bbox.yPct / 100) * srcH;
+  const headH = (bbox.hPct / 100) * srcH;
+  const headCy = headTop + headH / 2;
 
-  // Crop height = 60% of source height (zoom 1.67x). Face will occupy
-  // roughly 25-30% of output height after centering at 32%.
-  let cropH = srcH * 0.6;
+  const targetHeadFraction = 0.28;
+  let cropH = headH / targetHeadFraction;
   let cropW = cropH * targetAR;
-  if (cropW > srcW * 0.5) {
-    // Don't exceed half the source width — otherwise the two crops overlap.
-    cropW = srcW * 0.5;
+
+  // Cap width at 60% of source so left/right crops can still come from same image
+  if (cropW > srcW * 0.6) {
+    cropW = srcW * 0.6;
     cropH = cropW / targetAR;
   }
+  // Floor: don't crop smaller than 45% of source height (avoid over-zoom on tiny heads)
+  const minCropH = srcH * 0.45;
+  if (cropH < minCropH) {
+    cropH = minCropH;
+    cropW = cropH * targetAR;
+  }
 
-  // Center crop around face (horizontally) and face-at-32% (vertically)
-  let cropX = Math.round(faceCx - cropW / 2);
-  let cropY = Math.round(faceCy - cropH * 0.32);
+  let cropX = Math.round(headCx - cropW / 2);
+  let cropY = Math.round(headCy - cropH * 0.32);
 
   // Clamp to image bounds, shifting rather than shrinking
   if (cropX < 0) cropX = 0;
