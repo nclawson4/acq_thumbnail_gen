@@ -8,20 +8,37 @@ import {
 } from "./providers";
 import { StyleGuideSchema } from "../style";
 
+export const BodyLandmarkEnum = z.enum([
+  "shoulders",
+  "armpits",
+  "chest_bottom",
+  "waistline",
+  "hip_top",
+  "mid_thigh",
+]);
+export type BodyLandmark = z.infer<typeof BodyLandmarkEnum>;
+
 const BboxSchema = z.object({
   headTopPct: z
     .number()
     .min(0)
     .max(100)
     .describe(
-      "Y-coordinate (% of image height) of the very TOP of this person's head — top of the hair/skull. Be precise.",
+      "Y-coord (% of image height) of the very TOP of this person's head — top of the hair/skull. Must be precise.",
     ),
-  midStomachPct: z
+  bodyBottomPct: z
+    .number()
+    .min(0)
+    .max(150)
+    .describe(
+      "Y-coord (% of image height) of the chosen `bodyFrameLandmark` (e.g., waistline) on THIS specific person. Apply the chosen landmark name consistently — if `bodyFrameLandmark = 'waistline'`, this must be THIS person's waistline. If cut off below image edge, estimate where it would be (can exceed 100).",
+    ),
+  bodyCenterPct: z
     .number()
     .min(0)
     .max(100)
     .describe(
-      "Y-coordinate (% of image height) of this person's MID-STOMACH — roughly the belly-button level, ~3.5 head-heights below the top of their head. If the person's body is cut off in the image, return the y-coordinate where you'd estimate their mid-stomach would be (can exceed 100).",
+      "X-coord (% of image width) of the horizontal CENTER of THIS person's visible TORSO. Compute as the midpoint between the leftmost and rightmost edge of their visible body (shoulders/sides). NOT the face center — face can be turned off-axis. NOT props (easels, whiteboards). Must point to an actual human body.",
     ),
   facePct: z
     .object({
@@ -29,14 +46,10 @@ const BboxSchema = z.object({
         .number()
         .min(0)
         .max(100)
-        .describe(
-          "X-coord of the center of this person's FACE (the actual face — eyes/nose area). NOT background, NOT props, NOT easels or whiteboards.",
-        ),
+        .describe("X-coord of THIS person's visible face center (eyes/nose)."),
       cyPct: z.number().min(0).max(100),
     })
-    .describe(
-      "Center of the visible face (eyes/nose area) as % of image. If face is in profile or partly obscured, this is still the visible-face center.",
-    ),
+    .describe("Center of the visible face — used as a fallback / sanity check."),
 });
 export type Bbox = z.infer<typeof BboxSchema>;
 
@@ -53,10 +66,11 @@ export const CropPointsSchema = z.object({
   hostSide: z.enum(["left", "right"]),
   leftPersonDescription: z.string(),
   rightPersonDescription: z.string(),
-  leftBbox: BboxSchema.describe(
-    "Bounding box of the LEFT person — must encompass head + torso + visible body, tight enough that the box doesn't include the other person or large empty background. Face center should be near the horizontal center of the box.",
+  bodyFrameLandmark: BodyLandmarkEnum.describe(
+    "ONE body landmark name that you will apply IDENTICALLY to both subjects' bottom-of-frame. Pick the landmark that is visible (or estimable) on BOTH hosts. If one host's waist is hidden, pick a higher landmark like 'chest_bottom' or 'armpits' that works for BOTH.",
   ),
-  rightBbox: BboxSchema.describe("Same for the RIGHT person."),
+  leftBbox: BboxSchema,
+  rightBbox: BboxSchema,
   confidence: z.number().min(0).max(1),
   notes: z.string().optional(),
 });
@@ -125,12 +139,20 @@ Return:
 2. \`splitX\`: pixel column to split (left crop = [0, splitX], right crop = [splitX, width]).
 3. \`hostSide\` and a confidence score.
 4. Both person descriptions (clothing, hairstyle, expression).
-5. \`leftBbox\` and \`rightBbox\`: framing landmarks for each PERSON. CRITICAL — only identify ACTUAL HUMAN BEINGS. Do NOT treat easels, whiteboards, microphones, podiums, screens, or backdrop graphics as a person. If only one human is visible on a side, that's the one. For each person return:
-   - \`headTopPct\`: Y-coord (% of image height) of the very top of THEIR head (top of hair/skull).
-   - \`midStomachPct\`: Y-coord of THEIR MID-STOMACH (belly-button level, ~3.5 head-heights below the top of their head). If the body is cut off by the image edge, estimate where their mid-stomach WOULD be — value can exceed 100.
-   - \`facePct\`: \`cxPct\` and \`cyPct\` — the center of THEIR VISIBLE FACE (eyes/nose). For profiles, the visible-face center. Always a real face on a real person, never on a prop.
+5. \`bodyFrameLandmark\`: ONE landmark name from {shoulders, armpits, chest_bottom, waistline, hip_top, mid_thigh} that you will apply IDENTICALLY to both subjects for the bottom of frame.
+   - Goal: both crops show each person from head down to the SAME body part. Final thumbnail bottom must hit that EXACT named landmark on each person.
+   - Pick the landmark that is plausibly visible (or short-extrapolatable) on BOTH. If one person is sitting and their waist is hidden by a table, pick a higher landmark like \`chest_bottom\` or \`armpits\` that works for BOTH.
+   - Default to \`waistline\` if both are visible to that level. Otherwise pick the lowest landmark that works for both.
 
-   These coords define the vertical extent (headTop → midStomach) and the horizontal anchor (face center). Be precise. Both subjects' crops should produce comparable proportions: head + chest + ribs + mid-stomach at the frame bottom.
+6. \`leftBbox\` and \`rightBbox\`: framing landmarks for each PERSON. CRITICAL — only identify ACTUAL HUMAN BEINGS. Do NOT treat easels, whiteboards, microphones, podiums, screens, or backdrop graphics as a person.
+
+   For each person, return:
+   - \`headTopPct\`: Y-coord (% of image height) of the very top of THEIR head (top of hair/skull).
+   - \`bodyBottomPct\`: Y-coord of the chosen \`bodyFrameLandmark\` on THIS specific person. If \`bodyFrameLandmark = waistline\`, this is THIS person's waistline Y. SAME landmark name → must be the SAME named body part on each person. If cut off below image, estimate where it would be (>100 allowed).
+   - \`bodyCenterPct\`: X-coord of the horizontal CENTER of THIS person's visible TORSO — midpoint between the leftmost and rightmost edge of their visible body silhouette (shoulders/sides). NOT the face center. NOT a prop. Must be on the actual human body.
+   - \`facePct\`: \`cxPct\` and \`cyPct\` — the center of THEIR VISIBLE FACE (eyes/nose). For profiles, the visible-face center.
+
+   Be precise. Both subjects' crops will be framed: top = headTopPct, bottom = bodyBottomPct, horizontal center = bodyCenterPct.
 
 If the two people overlap, pick the cleanest split. If only one person is visible, set confidence below 0.4 and put a note explaining.`,
           },

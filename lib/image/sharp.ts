@@ -6,7 +6,8 @@ export const HALF_WIDTH = THUMB_WIDTH / 2;
 
 export type SubjectBbox = {
   headTopPct: number;
-  midStomachPct: number;
+  bodyBottomPct: number;
+  bodyCenterPct: number;
   facePct: { cxPct: number; cyPct: number };
 };
 
@@ -31,22 +32,22 @@ export async function frameSubjectHalf(
   const targetH = THUMB_HEIGHT;
   const targetAR = targetW / targetH;
 
-  // Use Claude's direct landmarks: top-of-head and mid-stomach are the
-  // intended top and bottom of the crop. This avoids relying on relative
-  // head-size measurements (which Claude estimates imprecisely).
+  // Claude returns three landmarks per subject (all applied identically to
+  // both subjects so the framed body parts match):
+  //   - headTopPct   → top of crop minus padding
+  //   - bodyBottomPct → exact bottom of crop (the SAME named landmark for both)
+  //   - bodyCenterPct → horizontal anchor (visible torso center, not face)
   const headTop = (bbox.headTopPct / 100) * srcH;
-  const midStomach = (bbox.midStomachPct / 100) * srcH;
-  // Anchor horizontally on the FACE (which Claude detects reliably) rather
-  // than a generic "body center" (which can drift to props like easels).
-  const bodyCx = (bbox.facePct.cxPct / 100) * srcW;
+  const bodyBottom = (bbox.bodyBottomPct / 100) * srcH;
+  const bodyCx = (bbox.bodyCenterPct / 100) * srcW;
 
-  // Subject vertical extent + 8% padding above the head for breathing room
-  const subjectH = Math.max(midStomach - headTop, srcH * 0.3);
+  // Vertical extent + 8% padding above the head for breathing room
+  const subjectH = Math.max(bodyBottom - headTop, srcH * 0.3);
   const padTop = subjectH * 0.08;
   const cropH = Math.round(subjectH + padTop);
   const cropW = Math.round(cropH * targetAR);
 
-  // Horizontal center on body, vertical from (headTop - padTop) to midStomach
+  // Horizontal center on body, vertical from (headTop - padTop) to bodyBottom
   const idealCropX = bodyCx - cropW / 2;
   const idealCropY = headTop - padTop;
 
