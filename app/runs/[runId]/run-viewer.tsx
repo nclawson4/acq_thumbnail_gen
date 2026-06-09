@@ -206,9 +206,10 @@ export function RunViewer({ runId }: { runId: string }) {
         <Card>
           <CardTitle>What&apos;s happening</CardTitle>
           <CardDescription className="mt-1">
-            The workflow fetches the thumbnail and transcript via Vercel Sandbox running
-            yt-dlp, then Claude detects the crop point and Gemini upscales each half. Quotes are
-            mined from the transcript, and three styled variants are composed.
+            The workflow fetches the thumbnail from YouTube&apos;s CDN, pulls the transcript via
+            Vercel Sandbox running yt-dlp, then Claude detects the crop point and Gemini
+            upscales each half. Quotes are mined from the transcript, and three styled variants
+            are composed.
           </CardDescription>
         </Card>
       </aside>
