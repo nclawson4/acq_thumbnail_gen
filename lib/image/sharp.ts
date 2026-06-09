@@ -7,7 +7,8 @@ export const HALF_WIDTH = THUMB_WIDTH / 2;
 export type SubjectBbox = {
   headTopPct: number;
   bodyBottomPct: number;
-  bodyCenterPct: number;
+  bodyLeftPct: number;
+  bodyRightPct: number;
   facePct: { cxPct: number; cyPct: number };
 };
 
@@ -32,14 +33,16 @@ export async function frameSubjectHalf(
   const targetH = THUMB_HEIGHT;
   const targetAR = targetW / targetH;
 
-  // Claude returns three landmarks per subject (all applied identically to
-  // both subjects so the framed body parts match):
-  //   - headTopPct   → top of crop minus padding
-  //   - bodyBottomPct → exact bottom of crop (the SAME named landmark for both)
-  //   - bodyCenterPct → horizontal anchor (visible torso center, not face)
+  // Claude returns landmarks per subject (all applied identically to both
+  // subjects so the framed body parts match):
+  //   - headTopPct      → top of crop minus padding
+  //   - bodyBottomPct   → exact bottom of crop (the SAME named landmark for both)
+  //   - bodyLeftPct/bodyRightPct → torso silhouette edges, midpoint = horizontal anchor
   const headTop = (bbox.headTopPct / 100) * srcH;
   const bodyBottom = (bbox.bodyBottomPct / 100) * srcH;
-  const bodyCx = (bbox.bodyCenterPct / 100) * srcW;
+  const bodyLeft = (bbox.bodyLeftPct / 100) * srcW;
+  const bodyRight = (bbox.bodyRightPct / 100) * srcW;
+  const bodyCx = (bodyLeft + bodyRight) / 2;
 
   // Vertical extent + 8% padding above the head for breathing room
   const subjectH = Math.max(bodyBottom - headTop, srcH * 0.3);

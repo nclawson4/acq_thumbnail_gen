@@ -33,12 +33,19 @@ const BboxSchema = z.object({
     .describe(
       "Y-coord (% of image height) of the chosen `bodyFrameLandmark` (e.g., waistline) on THIS specific person. Apply the chosen landmark name consistently — if `bodyFrameLandmark = 'waistline'`, this must be THIS person's waistline. If cut off below image edge, estimate where it would be (can exceed 100).",
     ),
-  bodyCenterPct: z
+  bodyLeftPct: z
     .number()
     .min(0)
     .max(100)
     .describe(
-      "X-coord (% of image width) of the horizontal CENTER of THIS person's visible TORSO. Compute as the midpoint between the leftmost and rightmost edge of their visible body (shoulders/sides). NOT the face center — face can be turned off-axis. NOT props (easels, whiteboards). Must point to an actual human body.",
+      "X-coord (% of image width) of the LEFTMOST edge of THIS person's visible torso/body silhouette. Find the leftmost pixel that belongs to this person (their left shoulder/arm/side). NOT props, NOT the other person, NOT background.",
+    ),
+  bodyRightPct: z
+    .number()
+    .min(0)
+    .max(100)
+    .describe(
+      "X-coord of the RIGHTMOST edge of THIS person's visible torso/body silhouette. Same constraint — strictly the person's right side, not adjacent props or backgrounds.",
     ),
   facePct: z
     .object({
@@ -148,11 +155,16 @@ Return:
 
    For each person, return:
    - \`headTopPct\`: Y-coord (% of image height) of the very top of THEIR head (top of hair/skull).
-   - \`bodyBottomPct\`: Y-coord of the chosen \`bodyFrameLandmark\` on THIS specific person. If \`bodyFrameLandmark = waistline\`, this is THIS person's waistline Y. SAME landmark name → must be the SAME named body part on each person. If cut off below image, estimate where it would be (>100 allowed).
-   - \`bodyCenterPct\`: X-coord of the horizontal CENTER of THIS person's visible TORSO — midpoint between the leftmost and rightmost edge of their visible body silhouette (shoulders/sides). NOT the face center. NOT a prop. Must be on the actual human body.
-   - \`facePct\`: \`cxPct\` and \`cyPct\` — the center of THEIR VISIBLE FACE (eyes/nose). For profiles, the visible-face center.
+   - \`bodyBottomPct\`: Y-coord of the chosen \`bodyFrameLandmark\` on THIS specific person. If \`bodyFrameLandmark = waistline\`, this is THIS person's waistline Y. SAME landmark name → must be the SAME named body part on each person.
+   - \`bodyLeftPct\`: X-coord of leftmost edge of THIS person's body silhouette (their actual body, not adjacent props).
+   - \`bodyRightPct\`: X-coord of rightmost edge of THIS person's body silhouette.
+   - \`facePct\`: \`cxPct\` and \`cyPct\` — center of THEIR VISIBLE FACE (eyes/nose).
 
-   Be precise. Both subjects' crops will be framed: top = headTopPct, bottom = bodyBottomPct, horizontal center = bodyCenterPct.
+SELF-CHECK before responding:
+- If you crop the left half at the bodyBottomPct y-coord, will the bottom edge show the chosen \`bodyFrameLandmark\` (e.g., waistline)?
+- If you crop the right half at the bodyBottomPct y-coord, will the bottom edge show the SAME \`bodyFrameLandmark\`?
+- If your answers don't match, revise. Better to pick a HIGHER landmark (armpits, chest_bottom) that's clearly visible on both than to estimate a lower one for a partially-hidden subject.
+- For \`bodyLeftPct\`/\`bodyRightPct\`: are these on the actual HUMAN body and not on an adjacent easel/prop?
 
 If the two people overlap, pick the cleanest split. If only one person is visible, set confidence below 0.4 and put a note explaining.`,
           },
