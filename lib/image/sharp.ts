@@ -7,7 +7,6 @@ export const HALF_WIDTH = THUMB_WIDTH / 2;
 export type SubjectBbox = {
   headTopPct: number;
   midStomachPct: number;
-  bodyCenterPct: number;
   facePct: { cxPct: number; cyPct: number };
 };
 
@@ -37,7 +36,9 @@ export async function frameSubjectHalf(
   // head-size measurements (which Claude estimates imprecisely).
   const headTop = (bbox.headTopPct / 100) * srcH;
   const midStomach = (bbox.midStomachPct / 100) * srcH;
-  const bodyCx = (bbox.bodyCenterPct / 100) * srcW;
+  // Anchor horizontally on the FACE (which Claude detects reliably) rather
+  // than a generic "body center" (which can drift to props like easels).
+  const bodyCx = (bbox.facePct.cxPct / 100) * srcW;
 
   // Subject vertical extent + 8% padding above the head for breathing room
   const subjectH = Math.max(midStomach - headTop, srcH * 0.3);

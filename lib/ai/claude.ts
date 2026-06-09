@@ -23,16 +23,15 @@ const BboxSchema = z.object({
     .describe(
       "Y-coordinate (% of image height) of this person's MID-STOMACH — roughly the belly-button level, ~3.5 head-heights below the top of their head. If the person's body is cut off in the image, return the y-coordinate where you'd estimate their mid-stomach would be (can exceed 100).",
     ),
-  bodyCenterPct: z
-    .number()
-    .min(0)
-    .max(100)
-    .describe(
-      "X-coordinate (% of image width) of this person's body center — roughly the centerline of their torso. Used to horizontally center the crop on this subject.",
-    ),
   facePct: z
     .object({
-      cxPct: z.number().min(0).max(100),
+      cxPct: z
+        .number()
+        .min(0)
+        .max(100)
+        .describe(
+          "X-coord of the center of this person's FACE (the actual face — eyes/nose area). NOT background, NOT props, NOT easels or whiteboards.",
+        ),
       cyPct: z.number().min(0).max(100),
     })
     .describe(
@@ -126,13 +125,12 @@ Return:
 2. \`splitX\`: pixel column to split (left crop = [0, splitX], right crop = [splitX, width]).
 3. \`hostSide\` and a confidence score.
 4. Both person descriptions (clothing, hairstyle, expression).
-5. \`leftBbox\` and \`rightBbox\`: framing landmarks for each person. For each one return:
-   - \`headTopPct\`: Y-coord (% of image height) of the very top of their head (top of hair/skull).
-   - \`midStomachPct\`: Y-coord of their MID-STOMACH (belly-button level, ~3.5 head-heights below the top of the head). If the body is cut off, estimate where the mid-stomach WOULD be — value can exceed 100.
-   - \`bodyCenterPct\`: X-coord (% of image width) of the centerline of their torso.
-   - \`facePct\`: center of the visible face (eyes/nose region) in {cxPct, cyPct}.
+5. \`leftBbox\` and \`rightBbox\`: framing landmarks for each PERSON. CRITICAL — only identify ACTUAL HUMAN BEINGS. Do NOT treat easels, whiteboards, microphones, podiums, screens, or backdrop graphics as a person. If only one human is visible on a side, that's the one. For each person return:
+   - \`headTopPct\`: Y-coord (% of image height) of the very top of THEIR head (top of hair/skull).
+   - \`midStomachPct\`: Y-coord of THEIR MID-STOMACH (belly-button level, ~3.5 head-heights below the top of their head). If the body is cut off by the image edge, estimate where their mid-stomach WOULD be — value can exceed 100.
+   - \`facePct\`: \`cxPct\` and \`cyPct\` — the center of THEIR VISIBLE FACE (eyes/nose). For profiles, the visible-face center. Always a real face on a real person, never on a prop.
 
-   These two Y-coords (headTop → midStomach) define the vertical extent of the final crop for that person, so be precise. Both subjects' crops should produce comparable proportions: head + chest + ribs + mid-stomach at the frame bottom.
+   These coords define the vertical extent (headTop → midStomach) and the horizontal anchor (face center). Be precise. Both subjects' crops should produce comparable proportions: head + chest + ribs + mid-stomach at the frame bottom.
 
 If the two people overlap, pick the cleanest split. If only one person is visible, set confidence below 0.4 and put a note explaining.`,
           },
