@@ -14,13 +14,15 @@ async function main() {
   const simpleOut = Buffer.from(simple.render().asPng());
   fs.writeFileSync("C:/Users/nclaw/AppData/Local/Temp/simple.png", simpleOut);
   console.log("Simple PNG bytes:", simpleOut.length);
+  const quote = process.argv[2] || "Growing his business for 5%";
+  const emph = (process.argv[3] || "Growing,5%").split(",");
   const overlay = await renderTextOverlay({
     width: 1280,
     height: 720,
-    quote: "I don't know what to do",
-    emphasisWords: ["what", "to", "do"],
+    quote,
+    emphasisWords: emph,
     whiteColor: "#FFFFFF",
-    yellowColor: "#FCD34D",
+    yellowColor: "#fdfc33",
   });
   // Composite over a mid-gray so we can see white text
   const bg = await sharp({

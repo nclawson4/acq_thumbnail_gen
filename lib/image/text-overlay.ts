@@ -2,8 +2,10 @@ import { Resvg } from "@resvg/resvg-js";
 import sharp from "sharp";
 import path from "node:path";
 
-function antonFontPath(): string {
-  return path.join(process.cwd(), "assets", "fonts", "Anton-Regular.ttf");
+const FONT_FAMILY = "Poppins";
+
+function fontFilePath(): string {
+  return path.join(process.cwd(), "assets", "fonts", "Poppins-Bold.ttf");
 }
 
 export type TextOverlaySpec = {
@@ -15,24 +17,84 @@ export type TextOverlaySpec = {
   yellowColor: string;
 };
 
-function splitWordsIntoLines(
+// Poppins-Bold rough metrics — avg char width as fraction of font size.
+// Used only for fitting; resvg does the actual layout.
+const CHAR_W = 0.55;
+const SPACE_W = 0.28;
+const QUOTE_W = 0.45;
+
+function estimateLineWidthPx(
   words: string[],
-  maxCharsPerLine: number,
+  fontSize: number,
+  addLeadingQuote: boolean,
+  addTrailingQuote: boolean,
+): number {
+  let w = 0;
+  if (addLeadingQuote) w += QUOTE_W * fontSize;
+  for (let i = 0; i < words.length; i++) {
+    if (i > 0) w += SPACE_W * fontSize;
+    w += words[i].length * CHAR_W * fontSize;
+  }
+  if (addTrailingQuote) w += QUOTE_W * fontSize;
+  return w;
+}
+
+function splitWordsToFit(
+  words: string[],
+  fontSize: number,
+  maxLineWidth: number,
 ): string[][] {
   const lines: string[][] = [[]];
-  let charCount = 0;
-  for (const w of words) {
+  for (let idx = 0; idx < words.length; idx++) {
+    const word = words[idx];
     const cur = lines[lines.length - 1];
-    const addLen = (cur.length === 0 ? 0 : 1) + w.length;
-    if (cur.length > 0 && charCount + addLen > maxCharsPerLine) {
-      lines.push([w]);
-      charCount = w.length;
+    const isFirstWordOverall = lines.length === 1 && cur.length === 0;
+    const isLastWordOverall = idx === words.length - 1;
+    const testLine = [...cur, word];
+    const testLeadingQuote = isFirstWordOverall || lines.length === 1;
+    const testTrailingQuote = isLastWordOverall;
+    if (
+      cur.length > 0 &&
+      estimateLineWidthPx(
+        testLine,
+        fontSize,
+        lines.length === 1 && cur.length === 0,
+        testTrailingQuote,
+      ) > maxLineWidth
+    ) {
+      lines.push([word]);
     } else {
-      cur.push(w);
-      charCount += addLen;
+      cur.push(word);
     }
   }
   return lines;
+}
+
+function fitTextToBox(
+  words: string[],
+  targetFontSize: number,
+  maxLineWidth: number,
+  maxLines = 3,
+): { fontSize: number; lines: string[][] } {
+  let fontSize = targetFontSize;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const lines = splitWordsToFit(words, fontSize, maxLineWidth);
+    const tooManyLines = lines.length > maxLines;
+    const overflow = lines.some((line, i) =>
+      estimateLineWidthPx(
+        line,
+        fontSize,
+        i === 0,
+        i === lines.length - 1,
+      ) > maxLineWidth,
+    );
+    if (!tooManyLines && !overflow) return { fontSize, lines };
+    fontSize = Math.round(fontSize * 0.92);
+  }
+  return {
+    fontSize,
+    lines: splitWordsToFit(words, fontSize, maxLineWidth),
+  };
 }
 
 function escapeXml(s: string): string {
@@ -50,7 +112,7 @@ function escapeXml(s: string): string {
 }
 
 export async function renderTextOverlay(spec: TextOverlaySpec): Promise<Buffer> {
-  const fontFile = antonFontPath();
+  const fontFile = fontFilePath();
   const cleanQuote = spec.quote.trim().replace(/^["“”']+|["“”']+$/g, "");
   const allWords = cleanQuote.split(/\s+/).filter(Boolean);
   const emphasisLower = new Set(
@@ -59,24 +121,27 @@ export async function renderTextOverlay(spec: TextOverlaySpec): Promise<Buffer> 
     ),
   );
 
-  // Allow lines up to ~75% of the frame width
-  const maxChars = Math.max(14, Math.round(spec.width / 48));
-  const lines = splitWordsIntoLines(allWords, maxChars);
-
-  const fontSize = Math.round(spec.height * 0.14);
-  const lineHeight = Math.round(fontSize * 1.05);
+  // 5% padding on each side; auto-shrink font if text would overflow
+  const padPx = Math.round(spec.width * 0.05);
+  const maxLineWidth = spec.width - 2 * padPx;
+  const targetFontSize = Math.round(spec.height * 0.12);
+  const { fontSize, lines } = fitTextToBox(
+    allWords,
+    targetFontSize,
+    maxLineWidth,
+    3,
+  );
+  const lineHeight = Math.round(fontSize * 1.1);
 
   // Text block bottom at 92% of height (8% bottom padding), left-aligned with 5% left pad
   const totalTextHeight = lines.length * lineHeight;
   const blockBottomY = Math.round(spec.height * 0.92);
   const blockTopY = blockBottomY - totalTextHeight;
 
-  const padLeft = Math.round(spec.width * 0.05);
-
   const lineTexts = (fillOverride?: string) =>
     lines
       .map((wordsOnLine, lineIdx) => {
-        const y = blockTopY + (lineIdx + 1) * lineHeight - Math.round(fontSize * 0.15);
+        const y = blockTopY + (lineIdx + 1) * lineHeight - Math.round(fontSize * 0.18);
         const tspans = wordsOnLine
           .map((word, i) => {
             const cleaned = word.toLowerCase().replace(/[^a-z0-9']/g, "");
@@ -98,7 +163,7 @@ export async function renderTextOverlay(spec: TextOverlaySpec): Promise<Buffer> 
             return `${open}${wordSpan}${close}`;
           })
           .join("");
-        return `<text x="${padLeft}" y="${y}" font-family="Anton" font-size="${fontSize}" font-weight="700">${tspans}</text>`;
+        return `<text x="${padPx}" y="${y}" font-family="${FONT_FAMILY}" font-size="${fontSize}" font-weight="700">${tspans}</text>`;
       })
       .join("\n");
 
@@ -123,7 +188,7 @@ export async function renderTextOverlay(spec: TextOverlaySpec): Promise<Buffer> 
         fitTo: { mode: "width", value: spec.width },
         font: {
           fontFiles: [fontFile],
-          defaultFontFamily: "Anton",
+          defaultFontFamily: FONT_FAMILY,
           loadSystemFonts: false,
         },
       })

@@ -59,7 +59,7 @@ export const TWO_HOST_DEFAULT_STYLE: StyleGuide = {
   },
   shading: { behindText: "gradient", intensity: 0.55 },
   accent: {
-    primaryColor: "#FFD400",
+    primaryColor: "#fdfc33",
     secondaryColor: "#FF3B30",
     saturationBoost: 0.1,
   },

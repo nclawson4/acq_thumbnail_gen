@@ -75,7 +75,7 @@ export async function composeVariantStep(args: {
     quote: args.quote,
     emphasisWords: args.emphasisWords,
     whiteColor: args.style.text.color || "#FFFFFF",
-    yellowColor: args.style.accent.primaryColor || "#FCD34D",
+    yellowColor: args.style.accent.primaryColor || "#fdfc33",
   });
   const withText = await sharp(base)
     .composite([{ input: textOverlay, top: 0, left: 0 }])
