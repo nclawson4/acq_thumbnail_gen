@@ -35,13 +35,14 @@ export function GenerateForm() {
 
   useEffect(() => {
     const saved = sessionStorage.getItem("byok");
-    if (saved) {
-      try {
-        const j = JSON.parse(saved);
-        if (j.geminiApiKey) setGeminiKey(j.geminiApiKey);
-        if (j.anthropicApiKey) setAnthropicKey(j.anthropicApiKey);
-      } catch {}
-    }
+    if (!saved) return;
+    try {
+      const j = JSON.parse(saved);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (j.geminiApiKey) setGeminiKey(j.geminiApiKey);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (j.anthropicApiKey) setAnthropicKey(j.anthropicApiKey);
+    } catch {}
   }, []);
 
   async function onSubmit(e: React.FormEvent) {
