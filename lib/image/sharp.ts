@@ -5,10 +5,9 @@ export const THUMB_HEIGHT = 720;
 export const HALF_WIDTH = THUMB_WIDTH / 2;
 
 export type SubjectBbox = {
-  xPct: number;
-  yPct: number;
-  wPct: number;
-  hPct: number;
+  headTopPct: number;
+  midStomachPct: number;
+  bodyCenterPct: number;
   facePct: { cxPct: number; cyPct: number };
 };
 
@@ -33,24 +32,22 @@ export async function frameSubjectHalf(
   const targetH = THUMB_HEIGHT;
   const targetAR = targetW / targetH;
 
-  // Head-bbox-anchored crop. Frame each subject to "mid-stomach to head":
-  //   - 0.5 head-heights of padding above the top of the head
-  //   - 1 head-height for the head itself
-  //   - 2.5 head-heights below the chin (covers neck → chest → mid-stomach)
-  // Total cropH = 4 × headH. Same rule for both subjects → heads end up
-  // the same size in output, bodies framed to the same proportions.
-  const headCx = ((bbox.xPct + bbox.wPct / 2) / 100) * srcW;
-  const headTop = (bbox.yPct / 100) * srcH;
-  const headH = (bbox.hPct / 100) * srcH;
+  // Use Claude's direct landmarks: top-of-head and mid-stomach are the
+  // intended top and bottom of the crop. This avoids relying on relative
+  // head-size measurements (which Claude estimates imprecisely).
+  const headTop = (bbox.headTopPct / 100) * srcH;
+  const midStomach = (bbox.midStomachPct / 100) * srcH;
+  const bodyCx = (bbox.bodyCenterPct / 100) * srcW;
 
-  const cropH = Math.round(4 * headH);
+  // Subject vertical extent + 8% padding above the head for breathing room
+  const subjectH = Math.max(midStomach - headTop, srcH * 0.3);
+  const padTop = subjectH * 0.08;
+  const cropH = Math.round(subjectH + padTop);
   const cropW = Math.round(cropH * targetAR);
 
-  // Ideal crop: 0.5 headH above the head, centered horizontally on head.
-  // sharp.extend() pads the source if this window goes off the edge —
-  // guarantees the head is centered in the output regardless of source edges.
-  const idealCropX = headCx - cropW / 2;
-  const idealCropY = headTop - 0.5 * headH;
+  // Horizontal center on body, vertical from (headTop - padTop) to midStomach
+  const idealCropX = bodyCx - cropW / 2;
+  const idealCropY = headTop - padTop;
 
   const extendLeft = Math.max(0, Math.ceil(-idealCropX));
   const extendTop = Math.max(0, Math.ceil(-idealCropY));

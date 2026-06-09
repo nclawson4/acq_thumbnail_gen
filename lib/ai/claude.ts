@@ -9,33 +9,26 @@ import {
 import { StyleGuideSchema } from "../style";
 
 const BboxSchema = z.object({
-  xPct: z
+  headTopPct: z
     .number()
     .min(0)
     .max(100)
     .describe(
-      "Left edge of TIGHT head bbox as % of image width (just the head skin/hairline, NOT shoulders or neck)",
+      "Y-coordinate (% of image height) of the very TOP of this person's head — top of the hair/skull. Be precise.",
     ),
-  yPct: z
+  midStomachPct: z
     .number()
     .min(0)
     .max(100)
     .describe(
-      "Top edge of head bbox = top of the visible skull/hair, as % of image height. Be tight — don't include space above the head.",
+      "Y-coordinate (% of image height) of this person's MID-STOMACH — roughly the belly-button level, ~3.5 head-heights below the top of their head. If the person's body is cut off in the image, return the y-coordinate where you'd estimate their mid-stomach would be (can exceed 100).",
     ),
-  wPct: z
+  bodyCenterPct: z
     .number()
     .min(0)
     .max(100)
     .describe(
-      "Head width as % of image width (left ear/temple to right ear/temple). Do NOT include hair sticking out.",
-    ),
-  hPct: z
-    .number()
-    .min(0)
-    .max(100)
-    .describe(
-      "Head height as % of image height: from top of hair/skull to bottom of chin ONLY. Do NOT include the neck, shoulders, hair buns above the skull, or any body. Typical: 8-25% of image height.",
+      "X-coordinate (% of image width) of this person's body center — roughly the centerline of their torso. Used to horizontally center the crop on this subject.",
     ),
   facePct: z
     .object({
@@ -133,7 +126,13 @@ Return:
 2. \`splitX\`: pixel column to split (left crop = [0, splitX], right crop = [splitX, width]).
 3. \`hostSide\` and a confidence score.
 4. Both person descriptions (clothing, hairstyle, expression).
-5. \`leftBbox\` and \`rightBbox\`: TIGHT bounding box around each person's HEAD ONLY. The bbox should be JUST the head — from the top of the visible hair/skull DOWN to the bottom of the chin, and from one ear/temple to the other. CRITICAL: do NOT include the neck, shoulders, body, hair buns sticking up above the skull, hats sitting on the head, or any background. Be conservative — tighter is better than looser. Estimate the head height as accurately as you can in percentage of image height; a typical face shot is 12-22%. Also return \`facePct.cxPct\` and \`facePct.cyPct\` — the center of the visible face (eyes/nose region) in % coords.
+5. \`leftBbox\` and \`rightBbox\`: framing landmarks for each person. For each one return:
+   - \`headTopPct\`: Y-coord (% of image height) of the very top of their head (top of hair/skull).
+   - \`midStomachPct\`: Y-coord of their MID-STOMACH (belly-button level, ~3.5 head-heights below the top of the head). If the body is cut off, estimate where the mid-stomach WOULD be — value can exceed 100.
+   - \`bodyCenterPct\`: X-coord (% of image width) of the centerline of their torso.
+   - \`facePct\`: center of the visible face (eyes/nose region) in {cxPct, cyPct}.
+
+   These two Y-coords (headTop → midStomach) define the vertical extent of the final crop for that person, so be precise. Both subjects' crops should produce comparable proportions: head + chest + ribs + mid-stomach at the frame bottom.
 
 If the two people overlap, pick the cleanest split. If only one person is visible, set confidence below 0.4 and put a note explaining.`,
           },
