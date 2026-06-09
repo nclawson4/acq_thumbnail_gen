@@ -41,7 +41,8 @@ export function estimateUsd(
 export async function getTodayDemoSpend(): Promise<number> {
   const key = COST_KEY(utcDateString());
   const raw = await getRedis().get<number | string>(key);
-  return typeof raw === "string" ? Number(raw) || 0 : raw ?? 0;
+  const microcents = typeof raw === "string" ? Number(raw) || 0 : raw ?? 0;
+  return microcents / 1_000_000;
 }
 
 export async function bumpDemoSpend(amountUsd: number): Promise<number> {
