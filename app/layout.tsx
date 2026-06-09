@@ -32,7 +32,8 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <header className="border-b border-[color:var(--border)] bg-background/95 backdrop-blur sticky top-0 z-30">
           <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-            <Link href="/" className="font-semibold tracking-tight">
+            <Link href="/" className="font-semibold tracking-tight flex items-center gap-2">
+              <span className="inline-block size-2 rounded-full bg-emerald-500" />
               Thumbnail Studio
             </Link>
             <nav className="flex items-center gap-6 text-sm text-[color:var(--muted-foreground)]">
