@@ -44,8 +44,10 @@ export async function frameSubjectHalf(
   const bodyRight = (bbox.bodyRightPct / 100) * srcW;
   const bodyCx = (bodyLeft + bodyRight) / 2;
 
-  // Vertical extent + 8% padding above the head for breathing room
-  const subjectH = Math.max(bodyBottom - headTop, srcH * 0.3);
+  // Vertical extent (head top → target body landmark) + 8% padding above the head.
+  // No floor: trust Claude's landmark values. If verification later finds the
+  // crop too loose, it adjusts bodyBottomPct UP and we re-crop tighter.
+  const subjectH = Math.max(bodyBottom - headTop, srcH * 0.15);
   const padTop = subjectH * 0.08;
   const cropH = Math.round(subjectH + padTop);
   const cropW = Math.round(cropH * targetAR);

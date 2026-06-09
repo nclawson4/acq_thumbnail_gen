@@ -55,10 +55,10 @@ async function adjustBbox(
   newBodyBottomPctInSource: number,
 ): Promise<SubjectBbox> {
   "use step";
-  // Compute current cropH/cropW from existing bbox
+  // Compute current cropH/cropW from existing bbox (mirror sharp.ts logic)
   const headTop = (bbox.headTopPct / 100) * srcH;
   const bodyBottom = (bbox.bodyBottomPct / 100) * srcH;
-  const subjectH = Math.max(bodyBottom - headTop, srcH * 0.3);
+  const subjectH = Math.max(bodyBottom - headTop, srcH * 0.15);
   const padTop = subjectH * 0.08;
   const cropH = subjectH + padTop;
   const targetAR = 640 / 720;
