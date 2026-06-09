@@ -66,12 +66,12 @@ export async function renderTextOverlay(spec: TextOverlaySpec): Promise<Buffer> 
   const fontSize = Math.round(spec.height * 0.14);
   const lineHeight = Math.round(fontSize * 1.05);
 
-  // Text block bottom at 92% of height (8% bottom padding), centered horizontally
+  // Text block bottom at 92% of height (8% bottom padding), left-aligned with 5% left pad
   const totalTextHeight = lines.length * lineHeight;
   const blockBottomY = Math.round(spec.height * 0.92);
   const blockTopY = blockBottomY - totalTextHeight;
 
-  const centerX = Math.round(spec.width / 2);
+  const padLeft = Math.round(spec.width * 0.05);
 
   const lineTexts = (fillOverride?: string) =>
     lines
@@ -81,19 +81,24 @@ export async function renderTextOverlay(spec: TextOverlaySpec): Promise<Buffer> 
           .map((word, i) => {
             const cleaned = word.toLowerCase().replace(/[^a-z0-9']/g, "");
             const isEmph = emphasisLower.has(cleaned);
-            const fill =
+            const wordFill =
               fillOverride ?? (isEmph ? spec.yellowColor : spec.whiteColor);
+            const quoteFill = fillOverride ?? spec.whiteColor;
             const prefix = i === 0 ? "" : " ";
-            const displayWord =
-              lineIdx === 0 && i === 0
-                ? `\u201C${word}`
-                : lineIdx === lines.length - 1 && i === wordsOnLine.length - 1
-                  ? `${word}\u201D`
-                  : word;
-            return `<tspan fill="${fill}">${prefix}${escapeXml(displayWord)}</tspan>`;
+            const isFirst = lineIdx === 0 && i === 0;
+            const isLast =
+              lineIdx === lines.length - 1 && i === wordsOnLine.length - 1;
+            const wordSpan = `<tspan fill="${wordFill}">${prefix}${escapeXml(word)}</tspan>`;
+            const open = isFirst
+              ? `<tspan fill="${quoteFill}">\u201C</tspan>`
+              : "";
+            const close = isLast
+              ? `<tspan fill="${quoteFill}">\u201D</tspan>`
+              : "";
+            return `${open}${wordSpan}${close}`;
           })
           .join("");
-        return `<text x="${centerX}" y="${y}" text-anchor="middle" font-family="Anton" font-size="${fontSize}" font-weight="700">${tspans}</text>`;
+        return `<text x="${padLeft}" y="${y}" font-family="Anton" font-size="${fontSize}" font-weight="700">${tspans}</text>`;
       })
       .join("\n");
 

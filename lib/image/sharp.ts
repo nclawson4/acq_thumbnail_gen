@@ -42,38 +42,42 @@ export async function frameSubjectHalf(
   const headCy = headTop + headH / 2;
 
   const targetHeadFraction = 0.28;
-  let cropH = headH / targetHeadFraction;
-  let cropW = cropH * targetAR;
+  const cropH = Math.round(headH / targetHeadFraction);
+  const cropW = Math.round(cropH * targetAR);
 
-  // Cap width at 60% of source so left/right crops can still come from same image
-  if (cropW > srcW * 0.6) {
-    cropW = srcW * 0.6;
-    cropH = cropW / targetAR;
+  // Ideal crop centered horizontally on the head, head at 32% from top.
+  // If this window extends past a source edge, sharp.extend() pads the
+  // source so the crop can ALWAYS be centered on the head — guaranteeing
+  // horizontal centering of the subject in the output.
+  const idealCropX = headCx - cropW / 2;
+  const idealCropY = headCy - cropH * 0.32;
+
+  const extendLeft = Math.max(0, Math.ceil(-idealCropX));
+  const extendTop = Math.max(0, Math.ceil(-idealCropY));
+  const extendRight = Math.max(0, Math.ceil(idealCropX + cropW - srcW));
+  const extendBottom = Math.max(0, Math.ceil(idealCropY + cropH - srcH));
+
+  let pipeline = sharp(imageBuffer);
+  if (extendLeft || extendRight || extendTop || extendBottom) {
+    pipeline = pipeline.extend({
+      left: extendLeft,
+      right: extendRight,
+      top: extendTop,
+      bottom: extendBottom,
+      background: { r: 0, g: 0, b: 0, alpha: 1 },
+    });
   }
-  // Floor: don't crop smaller than 45% of source height (avoid over-zoom on tiny heads)
-  const minCropH = srcH * 0.45;
-  if (cropH < minCropH) {
-    cropH = minCropH;
-    cropW = cropH * targetAR;
-  }
 
-  let cropX = Math.round(headCx - cropW / 2);
-  let cropY = Math.round(headCy - cropH * 0.32);
+  const finalCropX = Math.round(idealCropX + extendLeft);
+  const finalCropY = Math.round(idealCropY + extendTop);
 
-  // Clamp to image bounds, shifting rather than shrinking
-  if (cropX < 0) cropX = 0;
-  if (cropY < 0) cropY = 0;
-  if (cropX + cropW > srcW) cropX = Math.max(0, srcW - cropW);
-  if (cropY + cropH > srcH) cropY = Math.max(0, srcH - cropH);
-
-  // If the crop still exceeds source dimensions, shrink it
-  const finalW = Math.min(Math.round(cropW), srcW);
-  const finalH = Math.min(Math.round(cropH), srcH);
-  cropX = Math.max(0, Math.min(srcW - finalW, Math.round(cropX)));
-  cropY = Math.max(0, Math.min(srcH - finalH, Math.round(cropY)));
-
-  const jpeg = await sharp(imageBuffer)
-    .extract({ left: cropX, top: cropY, width: finalW, height: finalH })
+  const jpeg = await pipeline
+    .extract({
+      left: finalCropX,
+      top: finalCropY,
+      width: cropW,
+      height: cropH,
+    })
     .resize(targetW, targetH, { fit: "cover", position: "center" })
     .jpeg({ quality: 92 })
     .toBuffer();
