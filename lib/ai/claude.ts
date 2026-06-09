@@ -8,6 +8,36 @@ import {
 } from "./providers";
 import { StyleGuideSchema } from "../style";
 
+const BboxSchema = z.object({
+  xPct: z
+    .number()
+    .min(0)
+    .max(100)
+    .describe("Left edge of bounding box as % of image width"),
+  yPct: z
+    .number()
+    .min(0)
+    .max(100)
+    .describe("Top edge of bounding box as % of image height"),
+  wPct: z
+    .number()
+    .min(0)
+    .max(100)
+    .describe("Width as % of image width"),
+  hPct: z
+    .number()
+    .min(0)
+    .max(100)
+    .describe("Height as % of image height"),
+  facePct: z
+    .object({
+      cxPct: z.number().min(0).max(100),
+      cyPct: z.number().min(0).max(100),
+    })
+    .describe("Center of the person's face as % of image"),
+});
+export type Bbox = z.infer<typeof BboxSchema>;
+
 export const CropPointsSchema = z.object({
   imageWidth: z.number().int().positive(),
   imageHeight: z.number().int().positive(),
@@ -21,6 +51,10 @@ export const CropPointsSchema = z.object({
   hostSide: z.enum(["left", "right"]),
   leftPersonDescription: z.string(),
   rightPersonDescription: z.string(),
+  leftBbox: BboxSchema.describe(
+    "Bounding box of the LEFT person — must encompass head + torso + visible body, tight enough that the box doesn't include the other person or large empty background. Face center should be near the horizontal center of the box.",
+  ),
+  rightBbox: BboxSchema.describe("Same for the RIGHT person."),
   confidence: z.number().min(0).max(1),
   notes: z.string().optional(),
 });
@@ -42,8 +76,13 @@ export const QuoteCandidatesSchema = z.object({
   quotes: z
     .array(
       z.object({
-        text: z.string().describe("2-6 words, all caps suitable for a thumbnail"),
-        wordCount: z.number().int().min(2).max(8),
+        text: z.string().describe("3-8 words, suitable for thumbnail text overlay"),
+        emphasisWords: z
+          .array(z.string())
+          .describe(
+            "1-3 words from `text` that should be visually emphasized (rendered in yellow). Pick the punchiest, most action-oriented words.",
+          ),
+        wordCount: z.number().int().min(2).max(10),
         timestampSec: z.number().nonnegative().nullable(),
         rationale: z.string(),
         score: z.number().min(0).max(10),
@@ -79,11 +118,12 @@ export async function detectCropPoints(
 
 The host is on the **${hostSide}** side; the guest is on the opposite side.
 
-Return the exact pixel column (\`splitX\`) where the frame should be split so that:
-- Left crop = [0, splitX] contains ONLY the LEFT person (head + shoulders, no part of the right person).
-- Right crop = [splitX, imageWidth] contains ONLY the RIGHT person (head + shoulders, no part of the left person).
-
-Also return imageWidth and imageHeight in pixels, both person descriptions (clothing, hairstyle, expression), the host side, and a confidence score.
+Return:
+1. \`imageWidth\` and \`imageHeight\` in pixels.
+2. \`splitX\`: pixel column to split (left crop = [0, splitX], right crop = [splitX, width]).
+3. \`hostSide\` and a confidence score.
+4. Both person descriptions (clothing, hairstyle, expression).
+5. \`leftBbox\` and \`rightBbox\`: tight bounding boxes around each person's HEAD + visible TORSO (NOT the full body, NOT background). Use percentages of the image. Each bbox must include face + neck + shoulders + upper chest. Exclude as much background and the other person as possible. Also return \`facePct.cxPct\` and \`facePct.cyPct\` — the center of each person's face in % coords.
 
 If the two people overlap, pick the cleanest split. If only one person is visible, set confidence below 0.4 and put a note explaining.`,
           },
@@ -194,11 +234,12 @@ export async function pickQuotes(
             text: `From this video transcript, pick 5 candidate thumbnail text overlays.
 
 ${videoTitle ? `Video title: ${videoTitle}\n\n` : ""}Constraints:
-- Each candidate is 2-6 words.
-- Must work as ALL-CAPS bold thumbnail text.
+- Each candidate is 3-8 words (will render as bold display text in mixed-case).
+- Use regular mixed case (NOT all caps) — capital letters at sentence starts only.
 - Should make a viewer curious or feel a strong emotion.
 - Prefer direct quotes from the speaker. If no good direct quote exists, you may invent a punchy paraphrase that's faithful to the content.
-- Avoid generic ("YOU WON'T BELIEVE THIS") — favor specific, surprising, or contrarian phrases.
+- Avoid generic ("you won't believe this") — favor specific, surprising, or contrarian phrases.
+- For each quote, also pick \`emphasisWords\`: 1-3 words from the quote that should be highlighted in yellow (the punchy action/object words, NOT articles like "the/a/of").
 - Include the approximate timestamp in seconds if you took the line directly from the transcript; otherwise null.
 - Score each candidate 0–10 on thumbnail-worthiness.
 

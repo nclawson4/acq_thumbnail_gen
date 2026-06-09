@@ -125,6 +125,8 @@ export async function generateThumbnailWorkflow(
     runId: input.runId,
     thumbnailBase64: thumb.thumbnailBase64,
     splitX: crop.splitX,
+    leftBbox: crop.leftBbox,
+    rightBbox: crop.rightBbox,
   });
   await emit({
     type: "step",
@@ -277,6 +279,7 @@ export async function generateThumbnailWorkflow(
       leftUpscaledBase64: leftUp.base64,
       rightUpscaledBase64: rightUp.base64,
       quote: top3[i].text,
+      emphasisWords: top3[i].emphasisWords ?? [],
       quoteScore: top3[i].score,
       style,
       keys: input.keys,

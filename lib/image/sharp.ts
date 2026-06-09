@@ -2,6 +2,81 @@ import sharp from "sharp";
 
 export const THUMB_WIDTH = 1280;
 export const THUMB_HEIGHT = 720;
+export const HALF_WIDTH = THUMB_WIDTH / 2;
+
+export type SubjectBbox = {
+  xPct: number;
+  yPct: number;
+  wPct: number;
+  hPct: number;
+  facePct: { cxPct: number; cyPct: number };
+};
+
+/**
+ * Frame one subject into a half-width portrait by:
+ * 1. Expanding the bbox by padding so the head+torso is centered with ~10% top, ~5% sides padding
+ * 2. Adjusting to target half-aspect (640x720 = 0.89)
+ * 3. Clamping to image bounds, padding with mirrored edges if the subject is too close to an edge
+ *
+ * Returns a 640x720 JPEG.
+ */
+export async function frameSubjectHalf(
+  imageBuffer: Buffer,
+  bbox: SubjectBbox,
+): Promise<{ jpeg: Buffer; meta: { srcW: number; srcH: number } }> {
+  const meta = await sharp(imageBuffer).metadata();
+  const srcW = meta.width ?? 0;
+  const srcH = meta.height ?? 0;
+  if (!srcW || !srcH) throw new Error("Could not read image dimensions");
+
+  const targetW = HALF_WIDTH;
+  const targetH = THUMB_HEIGHT;
+  const targetAR = targetW / targetH;
+
+  // Face center in source pixel coords
+  const faceCx = (bbox.facePct.cxPct / 100) * srcW;
+  const faceCy = (bbox.facePct.cyPct / 100) * srcH;
+
+  // Bbox in source pixel coords
+  const bboxW = (bbox.wPct / 100) * srcW;
+  const bboxH = (bbox.hPct / 100) * srcH;
+
+  // We want face at ~50% horizontally, ~35% vertically of the output frame
+  // Subject occupies roughly 70% of the output frame height
+  // Compute the crop dimensions
+  let cropH = bboxH / 0.7;
+  let cropW = cropH * targetAR;
+
+  // Sanity floor — make sure we don't crop tighter than the bbox suggests width-wise
+  if (cropW < bboxW * 1.1) {
+    cropW = bboxW * 1.1;
+    cropH = cropW / targetAR;
+  }
+
+  // Center crop around face (horizontally) and face-at-35% (vertically)
+  let cropX = Math.round(faceCx - cropW / 2);
+  let cropY = Math.round(faceCy - cropH * 0.35);
+
+  // Clamp to image bounds, shifting rather than shrinking
+  if (cropX < 0) cropX = 0;
+  if (cropY < 0) cropY = 0;
+  if (cropX + cropW > srcW) cropX = Math.max(0, srcW - cropW);
+  if (cropY + cropH > srcH) cropY = Math.max(0, srcH - cropH);
+
+  // If the crop still exceeds source dimensions, shrink it
+  const finalW = Math.min(Math.round(cropW), srcW);
+  const finalH = Math.min(Math.round(cropH), srcH);
+  cropX = Math.max(0, Math.min(srcW - finalW, Math.round(cropX)));
+  cropY = Math.max(0, Math.min(srcH - finalH, Math.round(cropY)));
+
+  const jpeg = await sharp(imageBuffer)
+    .extract({ left: cropX, top: cropY, width: finalW, height: finalH })
+    .resize(targetW, targetH, { fit: "cover", position: "center" })
+    .jpeg({ quality: 92 })
+    .toBuffer();
+
+  return { jpeg, meta: { srcW, srcH } };
+}
 
 export async function cropHalvesFromThumbnail(
   imageBuffer: Buffer,

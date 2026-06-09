@@ -1,5 +1,13 @@
-import { upscaleReference, generateComposite } from "@/lib/ai/gemini";
-import { applyTextOverlay, normalizeFinal, adjustSaturation } from "@/lib/image/sharp";
+import sharp from "sharp";
+import { upscaleReference } from "@/lib/ai/gemini";
+import {
+  THUMB_WIDTH,
+  THUMB_HEIGHT,
+  composeSideBySide,
+  normalizeFinal,
+  adjustSaturation,
+} from "@/lib/image/sharp";
+import { renderTextOverlay } from "@/lib/image/text-overlay";
 import { putArtifact, blobPaths } from "@/lib/blob";
 import type { ProviderKeys } from "@/lib/ai/providers";
 import type { StyleGuide } from "@/lib/style";
@@ -46,6 +54,7 @@ export async function composeVariantStep(args: {
   leftUpscaledBase64: string;
   rightUpscaledBase64: string;
   quote: string;
+  emphasisWords: string[];
   quoteScore: number;
   style: StyleGuide;
   keys: ProviderKeys;
@@ -55,41 +64,24 @@ export async function composeVariantStep(args: {
   "use step";
   const left = Buffer.from(args.leftUpscaledBase64, "base64");
   const right = Buffer.from(args.rightUpscaledBase64, "base64");
-  let composite: Buffer;
 
-  if (args.useGeminiCompose) {
-    composite = await generateComposite(args.keys, {
-      leftUpscaled: left,
-      rightUpscaled: right,
-      quote: args.quote,
-      styleNotes: stylePromptFromGuide(args.style),
-      seedDescription: `Variant ${args.variantId}: ${variantSeed(args.variantId, args.style)}`,
-    });
-    await recordCost({
-      runId: args.runId,
-      step: `compose_${args.variantId}`,
-      provider: "google",
-      model: "gemini-3-pro-image-preview",
-      estimatedUsd: estimateUsd("google/gemini-flash-image", { imageCount: 1 }),
-      accessMode: args.accessMode,
-    });
-  } else {
-    const { composeSideBySide } = await import("@/lib/image/sharp");
-    composite = await composeSideBySide(left, right);
-  }
+  // Always use sharp side-by-side; Gemini composite is unreliable for clean splits
+  const base = await composeSideBySide(left, right);
 
-  const withText = await applyTextOverlay(composite, {
-    text: args.quote,
-    position: args.style.text.position,
-    fontFamily: args.style.text.fontFamily,
-    color: args.style.text.color,
-    strokeColor: args.style.text.strokeColor,
-    strokeWidth: args.style.text.strokeWidth,
-    sizeRatio: args.style.text.sizeRatio,
-    allCaps: args.style.text.allCaps,
-    shading: args.style.shading.behindText,
-    shadingIntensity: args.style.shading.intensity,
+  // Render text overlay as a transparent PNG, then composite over the base
+  const textOverlay = await renderTextOverlay({
+    width: THUMB_WIDTH,
+    height: THUMB_HEIGHT,
+    quote: args.quote,
+    emphasisWords: args.emphasisWords,
+    whiteColor: args.style.text.color || "#FFFFFF",
+    yellowColor: args.style.accent.primaryColor || "#FCD34D",
   });
+  const withText = await sharp(base)
+    .composite([{ input: textOverlay, top: 0, left: 0 }])
+    .png()
+    .toBuffer();
+
   const saturated = await adjustSaturation(
     withText,
     args.style.accent.saturationBoost,
@@ -106,30 +98,4 @@ export async function composeVariantStep(args: {
     quote: args.quote,
     score: args.quoteScore,
   };
-}
-
-function stylePromptFromGuide(style: StyleGuide): string {
-  return [
-    `Text style: ${style.text.fontFamily}, color ${style.text.color}`,
-    style.text.strokeColor
-      ? `with ${style.text.strokeWidth}px ${style.text.strokeColor} outline`
-      : "no outline",
-    `positioned at ${style.text.position}`,
-    style.shading.behindText !== "none"
-      ? `with a ${style.shading.behindText} shadow behind it (intensity ${style.shading.intensity})`
-      : "",
-    style.notes ?? "",
-  ]
-    .filter(Boolean)
-    .join(". ");
-}
-
-function variantSeed(variantId: string, style: StyleGuide): string {
-  const seeds = [
-    `Accent color ${style.accent.primaryColor} highlighted.`,
-    `Slightly punchier saturation, emphasis on facial expressions.`,
-    `Use ${style.accent.secondaryColor ?? style.accent.primaryColor} as a secondary accent.`,
-  ];
-  const idx = ["a", "b", "c"].indexOf(variantId.toLowerCase());
-  return seeds[idx >= 0 ? idx : 0];
 }

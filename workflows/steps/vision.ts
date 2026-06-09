@@ -8,7 +8,7 @@ import {
   type QuoteCandidates,
 } from "@/lib/ai/claude";
 import { putArtifact, blobPaths, fetchArtifactBuffer } from "@/lib/blob";
-import { cropHalvesFromThumbnail } from "@/lib/image/sharp";
+import { cropHalvesFromThumbnail, frameSubjectHalf } from "@/lib/image/sharp";
 import { scrubFrames } from "@/lib/sandbox/yt-dlp";
 import type { ProviderKeys } from "@/lib/ai/providers";
 import { recordCost, estimateUsd } from "@/lib/cost";
@@ -46,10 +46,27 @@ export async function cropHalvesStep(args: {
   runId: string;
   thumbnailBase64: string;
   splitX: number;
+  leftBbox?: CropPoints["leftBbox"];
+  rightBbox?: CropPoints["rightBbox"];
 }): Promise<{ leftUrl: string; rightUrl: string; leftBase64: string; rightBase64: string }> {
   "use step";
   const buffer = Buffer.from(args.thumbnailBase64, "base64");
-  const { leftJpeg, rightJpeg } = await cropHalvesFromThumbnail(buffer, args.splitX);
+
+  let leftJpeg: Buffer;
+  let rightJpeg: Buffer;
+  if (args.leftBbox && args.rightBbox) {
+    const [leftRes, rightRes] = await Promise.all([
+      frameSubjectHalf(buffer, args.leftBbox),
+      frameSubjectHalf(buffer, args.rightBbox),
+    ]);
+    leftJpeg = leftRes.jpeg;
+    rightJpeg = rightRes.jpeg;
+  } else {
+    const fallback = await cropHalvesFromThumbnail(buffer, args.splitX);
+    leftJpeg = fallback.leftJpeg;
+    rightJpeg = fallback.rightJpeg;
+  }
+
   const [left, right] = await Promise.all([
     putArtifact(blobPaths.leftRaw(args.runId), leftJpeg, {
       contentType: "image/jpeg",
