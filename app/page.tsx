@@ -6,6 +6,28 @@ import { HeroForm } from "./_components/hero-form";
 
 export const dynamic = "force-dynamic";
 
+// Hero carousel allowlist — only these videos appear in the carousel, in this order.
+// The library grid still shows every processed video.
+const CAROUSEL_VIDEO_IDS = [
+  "gOG7zvp2ub0",
+  "HaCf4VlnDLw",
+  "gMXG_HoYnRY",
+  "zk5jD2uko_k",
+  "rqJM6mFhyes",
+  "TaeBazpcRk8",
+  "wRe3Umk2hec",
+  "85lDC9uzFWI",
+  "3Lvhd3LIwwY",
+  "Tk0e0z8h64Y",
+  "HlK_MeYWKEs",
+  "_4BGku-jLh4",
+  "0ZwRf4Dy_MM",
+  "EjBgv-DGJ-M",
+  "JT3bePK2ens",
+  "7w1HQAvlLZk",
+  "Ht9u-qEXTQY",
+];
+
 type Pair = {
   videoId: string;
   title: string | null;
@@ -41,8 +63,10 @@ async function loadDonePairs(): Promise<Pair[]> {
 
 export default async function Home() {
   const pairs = await loadDonePairs();
-  // Carousel takes up to 12 (loops).
-  const carouselPairs = pairs.slice(0, 12);
+  const pairByVideoId = new Map(pairs.map((p) => [p.videoId, p]));
+  const carouselPairs = CAROUSEL_VIDEO_IDS.map((id) => pairByVideoId.get(id)).filter(
+    (p): p is Pair => p !== undefined,
+  );
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-10">
