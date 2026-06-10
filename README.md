@@ -1,92 +1,120 @@
 # Thumbnail Studio
 
-**AI-powered YouTube thumbnail generator for two-host interview videos.**
+A generative pipeline that turns a YouTube URL into three production thumbnails in about 90 seconds, for $0.10 per video.
 
-🌐 **Live demo:** [https://acq-thumbnails.vercel.app](https://acq-thumbnails.vercel.app) *(passcode-gated; contact the operator)*
+[Live demo](https://acq-thumbnails.vercel.app) · [Repo](https://github.com/nclawson4/acq_thumbnail_gen)
 
-> Paste a YouTube URL. The pipeline crops the host and guest, upscales each with Gemini, mines the transcript for an impactful 2–6 word headline, and composes three on-brand thumbnail variants — all in one durable agentic workflow.
+| Before | After |
+|--------|-------|
+| ![Original YouTube thumbnail](https://i.ytimg.com/vi/gOG7zvp2ub0/maxresdefault.jpg) | ![Generated thumbnail](https://waegwoxdckgi9exy.public.blob.vercel-storage.com/runs/2f639e23-002a-40c7-9555-0995b95f89e4/final/a.png) |
 
-This project is open-source on GitHub and deployable to Vercel in one click.
+The left image is the YouTube default frame from a panel video. The right image is what this pipeline produces from the same URL: each subject cropped and re-framed independently, both halves upscaled, and a headline mined from the transcript rendered on top.
 
----
+## The number that matters
 
-## What it demonstrates
+A human editor producing one thumbnail at typical freelance rates runs $10 to $20. This pipeline does it for $0.10 in API cost. That is at least a 100x reduction at studio scale.
 
-- **Durable multi-step agentic workflow** — Vercel Workflow DevKit orchestrates a 9-step pipeline with automatic retry, caching, and crash recovery. Edit any intermediate artifact and re-run from that step.
-- **Generative media pipeline** — Gemini Nano Banana (Gemini 3 Pro Image Preview) for upscale + compose; Claude Sonnet 4.5 vision for crop detection, quality rating, and quote selection.
-- **Sandboxed ingest** — Vercel Sandbox runs `yt-dlp` and `ffmpeg` in an ephemeral Firecracker microVM per job.
-- **Production guardrails** — Vercel BotID, per-IP rate limit, daily spend cap, BYOK isolation, cost logging to Postgres.
-- **Human-in-the-loop UI** — non-technical visitors can run the pipeline, intervene at any step, and download the chosen variant.
-- **Built-in evaluation harness** — manifest-driven checks + dashboard tracking pass rate, cost per step, and recent failures.
+Per-video cost breakdown:
+
+| Step | Provider | Cost |
+|------|----------|------|
+| Two image upscales | Gemini 3 Pro Image Preview at $0.04 per image | $0.08 |
+| Vision calls (crop, quality, verify) | Claude Haiku 4.5 | ~$0.01 |
+| Quote selection from transcript | Claude Haiku 4.5 | ~$0.01 |
+| Sandbox compute (yt-dlp + ffmpeg) | Vercel Sandbox | <$0.005 |
+| Blob storage of intermediates | Vercel Blob | <$0.005 |
+| **Total** | | **~$0.10** |
+
+End-to-end latency is around 90 seconds. Four groups of work run concurrently to keep the wall-clock time down.
+
+## Live demo
+
+[https://acq-thumbnails.vercel.app](https://acq-thumbnails.vercel.app)
+
+Paste any YouTube URL with two people on camera (interview, podcast, panel). Demo mode is open with passcode `demo2026` and a $5 daily spend cap shared across all visitors. BYOK mode lets you run on your own keys with no cap.
+
+## How it works
+
+The workflow takes a YouTube URL and emits three thumbnail variants. Each step is a durable unit of work, so a crash at any point resumes from the last completed step instead of replaying the full pipeline.
+
+```
+1. Fetch source thumbnail               YouTube CDN
+2. Fetch transcript                     yt-dlp inside Vercel Sandbox
+3. Detect split point                   Claude vision picks the X column to cut
+4. Crop and verify each half            Sharp crop, then Claude re-checks face centering
+5. Quality check both halves            Claude rates; falls back to frame scrubbing if poor
+6. Upscale each half                    Gemini 3 Pro Image
+7. Mine the transcript for a headline   Claude Haiku ranks candidate quotes
+8. Compose three variants               Sharp side-by-side, text overlay, saturation, normalize
+```
+
+Steps 1 and 2 run in parallel, both only need the URL. Steps 3, 4, and 5 are sequential, each one needs the prior output. Steps 6 and 7 run in parallel, neither needs the other. The three final composites in step 8 are independent and render in parallel too.
 
 ## Architecture
 
 ```
-Next.js 16 App Router
-├─ Workflow DevKit            durable multi-step orchestration
-├─ Vercel Sandbox             yt-dlp + ffmpeg per job
-├─ Anthropic Claude Sonnet    vision (crop, quality, style) + text (quotes)
-├─ Google Gemini 3 Pro Image  upscale + compose
-├─ Vercel Blob                artifacts (public + private)
-├─ Neon Postgres              runs, presets, cost log, evals
-└─ Upstash Redis              rate limit + daily spend counter
+Next.js 16 App Router        UI and API surface
+Vercel Workflow DevKit       Durable step orchestration with retry and replay
+Vercel Sandbox               Firecracker microVM for yt-dlp and ffmpeg
+Vercel Blob                  Every intermediate artifact, addressable by runId
+Neon Postgres                Run records, URL cache, cost ledger
+Upstash Redis                Per-IP rate limit and the daily spend counter
+Anthropic Claude             Vision (crop detection, framing verification, quality rating)
+                             Text (transcript mining, quote ranking)
+Google Gemini 3 Pro Image    Half upscales
+Sharp + Resvg                Crop, compose, saturate, normalize, text overlay
 ```
 
-### Pipeline
+A few choices worth calling out:
 
-| # | Step              | Tech                                  |
-|---|-------------------|---------------------------------------|
-| 1 | Fetch thumbnail   | yt-dlp in Vercel Sandbox              |
-| 2 | Fetch transcript  | yt-dlp auto-subs in Vercel Sandbox    |
-| 3 | Detect crop       | Claude vision returns `splitX` pixel  |
-| 4 | Crop halves       | Sharp; both halves to Blob            |
-| 5 | Quality check     | Claude rates each; scrubs frames if poor |
-| 6 | Upscale halves    | Gemini Nano Banana → 4K               |
-| 7 | Pick quotes       | Claude reads transcript → scored list |
-| 8 | Compose variants  | 3 final 1280×720 thumbnails           |
-| 9 | Finalize          | Sharp normalize + persist             |
+**Why a durable workflow instead of one long function call.** Mid-pipeline failures used to mean re-running the whole 90 seconds. Workflow DevKit persists state between steps so a Gemini timeout in step 6 resumes from the last good artifact instead of refetching the YouTube source.
+
+**Why Sandbox for yt-dlp.** yt-dlp is a Python tool that updates often and runs untrusted code paths. Running it in a microVM means it never touches the function host filesystem and can be killed cleanly on timeout.
+
+**Why every step writes to Blob.** Any intermediate (cropped halves, upscaled halves, quote shortlist) can be inspected after the fact. Made debugging the "head cut off" failure mode straightforward: pull the right-raw artifact, see that the source had already lost the head before the upscale, then fix the verifier.
+
+**Why a URL cache in Postgres.** Same video, same parameters, same output. The cache returns immediately for any `(videoId, hostSide, styleId)` triple already processed. Cuts repeat submissions from 90 seconds to roughly 200 milliseconds.
+
+## Production guardrails
+
+Built to run as a public demo, so it has guards a hobby project would skip.
+
+- **Per-day spend cap.** Every Gemini and Claude call goes through `recordCost`, which writes to a Postgres ledger and increments a Redis counter. When the counter exceeds the daily cap, new demo submissions return 402 with a clear message.
+- **Rate limit.** Upstash sliding window limits per-IP submissions.
+- **Bot defense.** Vercel BotID gates the submit endpoint.
+- **BYOK isolation.** Visitor keys travel per-request and never persist. Demo mode is gated by passcode plus the spend counter.
+- **Per-step cost recording.** The `cost_log` table records provider, model, step, token counts, and estimated USD for every paid call. Easy to spot expensive runs and tune.
+- **Quality audit harness.** While building this I ran an internal `/audit` route that classified every generated thumbnail into A, B, or C tiers with a reason, then surfaced re-runs at the top so I could verify whether a fix actually improved the output. The route is gone now that the catalog is stable, but the pattern (a separate eval surface that mirrors production data) scales to any quality-driven pipeline.
 
 ## Run it locally
 
-### Prereqs
-
-- Node.js 22+
-- A Vercel account (free)
-- Gemini, Anthropic, and (optional) Fal API keys
-
-### Setup
+Prerequisites: Node 22+, a Vercel account, Gemini and Anthropic API keys.
 
 ```bash
 git clone https://github.com/nclawson4/acq_thumbnail_gen
 cd acq_thumbnail_gen
 npm install
 cp .env.example .env.local
-# Fill in keys in .env.local
+# Add your keys to .env.local
 
-# Link to Vercel + provision storage
+# Provision storage and pull env
 vercel link
-vercel integration add neon         # Provisions DATABASE_URL
-vercel integration add upstash      # Provisions UPSTASH_REDIS_REST_*
+vercel integration add neon
+vercel integration add upstash
 vercel env pull .env.local --yes
 
-# Push schema and seed default style preset
+# Push schema and seed the default style preset
 npm run db:push
 npm run seed:style
 
-# Optional: bake the yt-dlp sandbox snapshot for fast cold starts
+# Optional: pre-bake the yt-dlp sandbox snapshot for faster cold starts
 npm run sandbox:snapshot
 # Copy the printed snapshot id into INGEST_SANDBOX_SNAPSHOT_ID
 
 npm run dev
 ```
 
-Visit [http://localhost:3000](http://localhost:3000).
-
-### Run a batch through the deployed API
-
-```bash
-BASE_URL=https://your-app.vercel.app DEMO_PASSCODE=... npm run batch:run
-```
+Open [http://localhost:3000](http://localhost:3000) and paste a URL.
 
 ## Deploy
 
@@ -94,42 +122,57 @@ BASE_URL=https://your-app.vercel.app DEMO_PASSCODE=... npm run batch:run
 vercel deploy --prod
 ```
 
-The Vercel project picks up `next.config.ts` automatically. Make sure these env vars are present in **Production**: `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `DEMO_PASSCODE`, `INGEST_SANDBOX_SNAPSHOT_ID`, plus the Marketplace-provisioned `DATABASE_URL`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, and `BLOB_READ_WRITE_TOKEN`.
+Production needs `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `DEMO_PASSCODE`, `INGEST_SANDBOX_SNAPSHOT_ID`, plus marketplace-provisioned `DATABASE_URL`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, and `BLOB_READ_WRITE_TOKEN`.
 
 ## Access modes
 
-| Mode | How it works |
-|------|--------------|
-| **Demo** | Passcode-gated. Uses operator's keys. Hard daily spend cap. |
-| **BYOK** | Visitor pastes their own Gemini + Anthropic keys. Keys live in `sessionStorage` only and are sent per-request. No persistence. No spend cap. |
+| Mode | Behavior |
+|------|----------|
+| `demo` | Passcode-gated. Uses the operator's API keys. Hard daily spend cap. |
+| `byok` | Visitor pastes their own Gemini and Anthropic keys. Keys live in sessionStorage and travel per-request. No persistence, no spend cap. |
 
 ## Repository layout
 
 ```
-app/                Next.js App Router pages + API routes
-  api/runs/start    Kicks off generate-thumbnail workflow
-  api/styles/...    List + extract style presets
-  api/dashboard     Aggregate cost + recent runs
-  generate/         Interactive form
-  runs/[runId]/     Live progress + variant picker
-  styles/           Style preset builder
-  dashboard/        Cost dashboard
-workflows/          Durable Workflow DevKit pipelines
-  steps/            Individual "use step" units
+app/
+  page.tsx                  Homepage: carousel + paste-a-URL form + library grid
+  runs/[runId]/             Per-run page with the three variants
+  api/runs/start            Workflow kickoff with cost, rate-limit, and auth gating
+  api/runs/[runId]          Run status plus an SSE stream of step events
+  api/admin/...             Admin endpoint for baking the sandbox snapshot
+workflows/
+  generate-thumbnail.ts     The 8-step durable workflow
+  steps/                    Individual "use step" units (ingest, vision, compose, persistence)
 lib/
-  ai/               Claude + Gemini wrappers
-  sandbox/          Vercel Sandbox runners (yt-dlp, ffmpeg)
-  image/            Sharp helpers (crop, compose, overlay)
-  db/               Drizzle schema + lazy client
-  auth.ts           Passcode + BYOK validation
-  rate-limit.ts     Upstash sliding window
-  cost.ts           Daily spend cap + cost log
-  style.ts          Style guide schema
-components/ui/      Tailwind UI primitives
-scripts/            CLI helpers (sandbox snapshot, seed, batch)
-evals/              Batch input + check manifest
+  ai/                       Claude and Gemini wrappers, prompt schemas
+  sandbox/                  Vercel Sandbox runners (yt-dlp, ffmpeg)
+  image/                    Sharp helpers (crop, compose, overlay, saturation)
+  db/                       Drizzle schema and lazy client
+  auth.ts                   Passcode and BYOK validation
+  rate-limit.ts             Upstash sliding window
+  cost.ts                   Daily spend cap and cost log
+  style.ts                  Style guide schema
+scripts/                    CLI helpers (sandbox snapshot, seed, batch run, per-video craft scripts)
+evals/                      Batch input and check manifest
 ```
+
+## What I would build next
+
+Concrete fixes for things I already know are rough:
+
+- **Cross-subject head-size verifier.** The current framing verifier checks each half individually but does not enforce that the two final crops produce heads at the same pixel size. When one subject is close to camera and the other is far back, the per-subject crop math diverges. Fix: after the first pass, measure head heights in both 640x720 crops and re-tighten the smaller one until they match within 20%.
+- **Head-visibility check.** Verifier currently confirms face centering and bottom landmark match, but does not check that the top of the head is in frame. Caused a handful of "head cut off" failures in side-profile sources. Fix: ask the verifier to confirm hairline visibility and re-crop with more top padding if not.
+- **Single-subject fallback.** Pipeline assumes left guest plus right host. For sources where only one subject exists, the right-half crop grabs whatever face Claude finds in that half (usually a blurry audience member). Fix: count detected subjects in `detectCrop`, reject or pivot to a single-portrait layout if there is only one.
+- **Automated regression eval.** The audit was manually labeled. Wire a Claude vision pass that scores each generated thumbnail on the same criteria and flags regressions automatically when a pipeline change ships.
+
+## Stack
+
+Next.js 16, Vercel Workflow DevKit, Vercel Sandbox, Vercel Blob, Neon Postgres, Upstash Redis, Anthropic Claude (Sonnet 4.6, Haiku 4.5), Google Gemini 3 Pro Image, Sharp, Resvg, Drizzle, Zod.
 
 ## License
 
-MIT. See LICENSE.
+MIT.
+
+## Author
+
+Nick Clawson. Contact via [nclawson4@gmail.com](mailto:nclawson4@gmail.com).
