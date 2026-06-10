@@ -85,14 +85,29 @@ export async function fetchTranscript(
 ): Promise<{ transcript: string; title: string; source: "subs" | "none" }> {
   const sandbox = await createSandbox(180_000);
   try {
-    const cmd = await sandbox.runCommand("sh", [
-      "-c",
-      `yt-dlp --no-warnings --skip-download --print "%(title)s" --write-auto-subs --sub-lang en --sub-format vtt -o "/tmp/sub.%(ext)s" "${videoUrl}" 2>/dev/null && cat /tmp/sub.en.vtt 2>/dev/null || true`,
+    // videoUrl is passed as a direct argv entry — no shell interpolation,
+    // so `; rm -rf /` or backtick payloads in the URL string can't escape.
+    const ytdlp = await sandbox.runCommand("yt-dlp", [
+      "--no-warnings",
+      "--skip-download",
+      "--print",
+      "%(title)s",
+      "--write-auto-subs",
+      "--sub-lang",
+      "en",
+      "--sub-format",
+      "vtt",
+      "-o",
+      "/tmp/sub.%(ext)s",
+      videoUrl,
     ]);
-    const output = await cmd.stdout();
-    const lines = output.split("\n");
-    const title = lines[0]?.trim() ?? "";
-    const vtt = lines.slice(1).join("\n");
+    const title = (await ytdlp.stdout()).trim();
+    // Path is a hardcoded literal; sh -c here has no untrusted input.
+    const catCmd = await sandbox.runCommand("sh", [
+      "-c",
+      "cat /tmp/sub.en.vtt 2>/dev/null || true",
+    ]);
+    const vtt = await catCmd.stdout();
     if (!vtt.includes("-->")) {
       return { transcript: "", title, source: "none" };
     }
@@ -109,9 +124,14 @@ export async function scrubFrames(
 ): Promise<Buffer[]> {
   const sandbox = await createSandbox(300_000);
   try {
-    await sandbox.runCommand("sh", [
-      "-c",
-      `yt-dlp --no-warnings -f "best[height<=720]" -o /tmp/video.mp4 "${videoUrl}"`,
+    // videoUrl is passed as a direct argv entry — no shell, no injection.
+    await sandbox.runCommand("yt-dlp", [
+      "--no-warnings",
+      "-f",
+      "best[height<=720]",
+      "-o",
+      "/tmp/video.mp4",
+      videoUrl,
     ]);
     const check = await sandbox.runCommand("sh", [
       "-c",

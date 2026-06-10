@@ -24,9 +24,12 @@ export class AccessDeniedError extends Error {
 
 export async function getClientIp(): Promise<string> {
   const h = await headers();
+  // On Vercel, x-real-ip is the platform-injected source of truth.
+  // x-forwarded-for can be set by clients on non-Vercel deployments and
+  // is only consulted as a fallback for portability.
   return (
-    h.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     h.get("x-real-ip") ??
+    h.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     "unknown"
   );
 }

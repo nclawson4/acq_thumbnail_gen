@@ -8,7 +8,11 @@ A generative pipeline that turns a YouTube URL into three production thumbnails 
 |--------|-------|
 | ![Original YouTube thumbnail](https://i.ytimg.com/vi/gOG7zvp2ub0/maxresdefault.jpg) | ![Generated thumbnail](https://waegwoxdckgi9exy.public.blob.vercel-storage.com/runs/2f639e23-002a-40c7-9555-0995b95f89e4/final/a.png) |
 
-The left image is the YouTube default frame from a panel video. The right image is what this pipeline produces from the same URL: each subject cropped and re-framed independently, both halves upscaled, and a headline mined from the transcript rendered on top.
+The left image is the YouTube default frame from a workshop video. The right image is what this pipeline produces from the same URL.
+
+### Why this matters
+
+Every video on the [MoreMozi](https://www.youtube.com/@MoreMozi) channel currently ships without a studio-quality thumbnail because the videos are published [autonomously](https://www.youtube.com/watch?v=NvOvFB4wmXQ). The pipeline behind that channel is set up to publish 20+ pieces of content per day, but thumbnails have not been automated. This project closes that gap: same URL in, production-grade thumbnails out, at a cost the autonomous publishing budget can absorb without thinking about it.
 
 ## The number that matters
 
@@ -155,15 +159,6 @@ lib/
 scripts/                    CLI helpers (sandbox snapshot, seed, batch run, per-video craft scripts)
 evals/                      Batch input and check manifest
 ```
-
-## What I would build next
-
-Concrete fixes for things I already know are rough:
-
-- **Cross-subject head-size verifier.** The current framing verifier checks each half individually but does not enforce that the two final crops produce heads at the same pixel size. When one subject is close to camera and the other is far back, the per-subject crop math diverges. Fix: after the first pass, measure head heights in both 640x720 crops and re-tighten the smaller one until they match within 20%.
-- **Head-visibility check.** Verifier currently confirms face centering and bottom landmark match, but does not check that the top of the head is in frame. Caused a handful of "head cut off" failures in side-profile sources. Fix: ask the verifier to confirm hairline visibility and re-crop with more top padding if not.
-- **Single-subject fallback.** Pipeline assumes left guest plus right host. For sources where only one subject exists, the right-half crop grabs whatever face Claude finds in that half (usually a blurry audience member). Fix: count detected subjects in `detectCrop`, reject or pivot to a single-portrait layout if there is only one.
-- **Automated regression eval.** The audit was manually labeled. Wire a Claude vision pass that scores each generated thumbnail on the same criteria and flags regressions automatically when a pipeline change ships.
 
 ## Stack
 
