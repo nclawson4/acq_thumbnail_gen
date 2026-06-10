@@ -61,7 +61,8 @@ const VARIANTS = [
 
 const STYLE = {
   text: { color: "#FFFFFF" },
-  accent: { primaryColor: "#fdfc33", saturationBoost: 1.0 },
+  // adjustSaturation takes a DELTA — 1.0 means +100% (doubled). 0 = no boost.
+  accent: { primaryColor: "#fdfc33", saturationBoost: 0 },
 } as const;
 
 async function craftVariant(

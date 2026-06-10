@@ -35,29 +35,31 @@ const VIDEO_TITLE = "Phantom Equity Saves Your Company";
 const LEFT_CROP = { left: 57, top: 80, width: 356, height: 400 };
 // Alex is in side profile + far back on stage, so his head is naturally smaller.
 // Tightened crop to ~170x191 so heads land at the same size after 640x720 resize.
-const RIGHT_CROP = { left: 810, top: 95, width: 170, height: 191 };
+const RIGHT_CROP = { left: 814, top: 88, width: 150, height: 169 };
 
 const VARIANTS = [
   {
     id: "a",
-    quote: "Phantom equity saves your company",
-    emphasisWords: ["Phantom", "saves"],
+    quote: "Phantom equity wins",
+    emphasisWords: ["Phantom", "wins"],
   },
   {
     id: "b",
-    quote: "Skip the equity trap",
-    emphasisWords: ["Skip", "trap"],
+    quote: "Skip real equity",
+    emphasisWords: ["Skip", "real"],
   },
   {
     id: "c",
-    quote: "Pay without giving up control",
-    emphasisWords: ["without", "control"],
+    quote: "Pay don't give equity",
+    emphasisWords: ["Pay", "equity"],
   },
 ] as const;
 
 const STYLE = {
   text: { color: "#FFFFFF" },
-  accent: { primaryColor: "#fdfc33", saturationBoost: 1.0 },
+  // adjustSaturation takes a DELTA (1 + delta = multiplier). Earlier scripts
+  // passed 1.0 → multiplier 2.0 → doubled saturation. 0 = no boost.
+  accent: { primaryColor: "#fdfc33", saturationBoost: 0 },
 } as const;
 
 async function craftVariant(
