@@ -76,11 +76,13 @@ export async function POST(request: Request) {
 
   const youtubeId = youtubeIdFromUrl(parsed.data.videoUrl)!;
 
-  // Cache lookup: serve from a prior successful run if (videoUrl, styleId, hostSide) match.
-  // Skipped when forceRerun=true or useGeminiCompose=true (latter isn't stored on the row).
-  // Done before demo-budget check so cached runs are free to serve.
+  // URL cache temporarily disabled while we verify cold-path performance.
+  // Flip CACHE_ENABLED to true to re-enable.
+  const CACHE_ENABLED = false;
   const cacheable =
-    !parsed.data.forceRerun && !parsed.data.useGeminiCompose;
+    CACHE_ENABLED &&
+    !parsed.data.forceRerun &&
+    !parsed.data.useGeminiCompose;
   if (cacheable) {
     const styleFilter = parsed.data.styleId
       ? eq(schema.runs.styleId, parsed.data.styleId)
