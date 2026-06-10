@@ -43,6 +43,7 @@ service-account*.json
 tmp/
 artifacts/
 scratch/
+.scratch/
 *.mp4
 *.webm
 *.mkv
