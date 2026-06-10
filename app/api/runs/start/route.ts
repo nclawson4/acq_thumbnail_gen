@@ -76,9 +76,7 @@ export async function POST(request: Request) {
 
   const youtubeId = youtubeIdFromUrl(parsed.data.videoUrl)!;
 
-  // URL cache temporarily disabled while we verify cold-path performance.
-  // Flip CACHE_ENABLED to true to re-enable.
-  const CACHE_ENABLED = false;
+  const CACHE_ENABLED = true;
   const cacheable =
     CACHE_ENABLED &&
     !parsed.data.forceRerun &&
