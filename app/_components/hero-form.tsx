@@ -118,7 +118,7 @@ export function HeroForm() {
           onChange={(e) => setVideoUrl(e.target.value)}
           placeholder="Paste a YouTube URL"
           disabled={submitting}
-          className="flex-1 h-12 rounded-lg border border-[color:var(--border)] bg-background px-4 text-[15px] outline-none focus:ring-2 focus:ring-[color:var(--accent)] disabled:opacity-60"
+          className="w-full sm:flex-1 sm:w-auto min-w-0 h-12 rounded-lg border border-[color:var(--border)] bg-background px-4 text-[15px] outline-none focus:ring-2 focus:ring-[color:var(--accent)] disabled:opacity-60"
         />
         <input
           type="password"
@@ -127,12 +127,12 @@ export function HeroForm() {
           onChange={(e) => setPasscode(e.target.value)}
           placeholder="Passcode"
           disabled={submitting}
-          className="h-12 w-full sm:w-44 rounded-lg border border-[color:var(--border)] bg-background px-4 text-[15px] outline-none focus:ring-2 focus:ring-[color:var(--accent)] disabled:opacity-60"
+          className="w-full sm:w-44 h-12 rounded-lg border border-[color:var(--border)] bg-background px-4 text-[15px] outline-none focus:ring-2 focus:ring-[color:var(--accent)] disabled:opacity-60"
         />
         <button
           type="submit"
           disabled={submitting}
-          className="h-12 px-6 rounded-lg bg-foreground text-background font-medium text-[15px] hover:opacity-90 disabled:opacity-60 transition-opacity"
+          className="w-full sm:w-auto h-12 px-6 rounded-lg bg-foreground text-background font-medium text-[15px] hover:opacity-90 disabled:opacity-60 transition-opacity"
         >
           {submitting ? "Generating..." : "Generate"}
         </button>
