@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { start } from "workflow/api";
 import { generateThumbnailWorkflow } from "@/workflows/generate-thumbnail";
 import {
@@ -26,6 +27,7 @@ const BodySchema = z.object({
   styleId: z.string().nullable().optional(),
   hostSide: z.enum(["left", "right"]).default("right"),
   useGeminiCompose: z.boolean().default(false),
+  forceRerun: z.boolean().default(false),
 });
 
 export async function POST(request: Request) {
@@ -72,6 +74,57 @@ export async function POST(request: Request) {
     throw e;
   }
 
+  const youtubeId = youtubeIdFromUrl(parsed.data.videoUrl)!;
+
+  // Cache lookup: serve from a prior successful run if (videoUrl, styleId, hostSide) match.
+  // Skipped when forceRerun=true or useGeminiCompose=true (latter isn't stored on the row).
+  // Done before demo-budget check so cached runs are free to serve.
+  const cacheable =
+    !parsed.data.forceRerun && !parsed.data.useGeminiCompose;
+  if (cacheable) {
+    const styleFilter = parsed.data.styleId
+      ? eq(schema.runs.styleId, parsed.data.styleId)
+      : isNull(schema.runs.styleId);
+    const cachedRows = await getDb()
+      .select({
+        finalUrls: schema.runs.finalUrls,
+        videoTitle: schema.runs.videoTitle,
+      })
+      .from(schema.runs)
+      .where(
+        and(
+          eq(schema.runs.youtubeId, youtubeId),
+          eq(schema.runs.hostSide, parsed.data.hostSide),
+          eq(schema.runs.status, "done"),
+          styleFilter,
+        ),
+      )
+      .orderBy(desc(schema.runs.createdAt))
+      .limit(1);
+    const cached = cachedRows[0];
+    if (cached?.finalUrls && cached.finalUrls.length === 3) {
+      const cachedRunId = crypto.randomUUID();
+      await getDb().insert(schema.runs).values({
+        id: cachedRunId,
+        workflowRunId: null,
+        youtubeUrl: parsed.data.videoUrl,
+        youtubeId,
+        videoTitle: cached.videoTitle,
+        styleId: parsed.data.styleId ?? null,
+        hostSide: parsed.data.hostSide,
+        status: "done",
+        currentStep: "done",
+        finalUrls: cached.finalUrls,
+        accessMode: grant.mode,
+      });
+      return NextResponse.json({
+        runId: cachedRunId,
+        cached: true,
+        finalUrls: cached.finalUrls,
+      });
+    }
+  }
+
   if (grant.mode === "demo") {
     try {
       await assertDemoBudget();
@@ -90,7 +143,6 @@ export async function POST(request: Request) {
 
   const keys = resolveAiKeys(grant);
   const runId = crypto.randomUUID();
-  const youtubeId = youtubeIdFromUrl(parsed.data.videoUrl)!;
 
   const run = await start(generateThumbnailWorkflow, [
     {

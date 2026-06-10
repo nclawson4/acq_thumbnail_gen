@@ -65,3 +65,6 @@ yarn-error.log*
 
 # eval outputs (large, can regenerate)
 evals/results/
+
+.vercel
+.env*.local

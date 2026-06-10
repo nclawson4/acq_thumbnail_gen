@@ -69,37 +69,42 @@ export async function generateThumbnailWorkflow(
   }
   await emit({ type: "step", step: "load_style", status: "completed", data: { name: stylePreset?.id ?? "default" } });
 
-  // 1. Fetch thumbnail
-  await updateRunStep({ runId: input.runId, patch: { currentStep: "fetch_thumbnail" } });
-  await emit({ type: "step", step: "fetch_thumbnail", status: "started" });
-  const thumb = await fetchThumbnailStep({
-    runId: input.runId,
-    videoUrl: input.videoUrl,
-  });
-  await updateRunStep({
-    runId: input.runId,
-    patch: { videoTitle: thumb.title },
-  });
-  await emit({
-    type: "step",
-    step: "fetch_thumbnail",
-    status: "completed",
-    data: { url: thumb.thumbnailUrl, title: thumb.title },
-  });
-
-  // 2. Fetch transcript (in parallel-ish — sequential here for simpler workflow)
-  await updateRunStep({ runId: input.runId, patch: { currentStep: "fetch_transcript" } });
-  await emit({ type: "step", step: "fetch_transcript", status: "started" });
-  const transcript = await fetchTranscriptStep({
-    runId: input.runId,
-    videoUrl: input.videoUrl,
-  });
-  await emit({
-    type: "step",
-    step: "fetch_transcript",
-    status: "completed",
-    data: { source: transcript.source, length: transcript.transcript.length },
-  });
+  // 1+2. Fetch thumbnail + transcript in parallel — both only need videoUrl
+  await updateRunStep({ runId: input.runId, patch: { currentStep: "ingest" } });
+  const [thumb, transcript] = await Promise.all([
+    (async () => {
+      await emit({ type: "step", step: "fetch_thumbnail", status: "started" });
+      const r = await fetchThumbnailStep({
+        runId: input.runId,
+        videoUrl: input.videoUrl,
+      });
+      await updateRunStep({
+        runId: input.runId,
+        patch: { videoTitle: r.title },
+      });
+      await emit({
+        type: "step",
+        step: "fetch_thumbnail",
+        status: "completed",
+        data: { url: r.thumbnailUrl, title: r.title },
+      });
+      return r;
+    })(),
+    (async () => {
+      await emit({ type: "step", step: "fetch_transcript", status: "started" });
+      const r = await fetchTranscriptStep({
+        runId: input.runId,
+        videoUrl: input.videoUrl,
+      });
+      await emit({
+        type: "step",
+        step: "fetch_transcript",
+        status: "completed",
+        data: { source: r.source, length: r.transcript.length },
+      });
+      return r;
+    })(),
+  ]);
 
   // 3. Detect crop points
   await emit({ type: "step", step: "detect_crop", status: "started" });
@@ -138,23 +143,25 @@ export async function generateThumbnailWorkflow(
     data: { leftUrl: halves.leftUrl, rightUrl: halves.rightUrl },
   });
 
-  // 5. Quality check + frame scrub fallback (sequential for simplicity)
+  // 5. Quality check left + right in parallel; frame scrub fallback stays sequential (shared video download)
   await updateRunStep({ runId: input.runId, patch: { currentStep: "quality_check" } });
   await emit({ type: "step", step: "quality_check", status: "started" });
-  const leftQuality = await qualityCheckStep({
-    runId: input.runId,
-    side: "left",
-    imageBase64: halves.leftBase64,
-    keys: input.keys,
-    accessMode: input.accessMode,
-  });
-  const rightQuality = await qualityCheckStep({
-    runId: input.runId,
-    side: "right",
-    imageBase64: halves.rightBase64,
-    keys: input.keys,
-    accessMode: input.accessMode,
-  });
+  const [leftQuality, rightQuality] = await Promise.all([
+    qualityCheckStep({
+      runId: input.runId,
+      side: "left",
+      imageBase64: halves.leftBase64,
+      keys: input.keys,
+      accessMode: input.accessMode,
+    }),
+    qualityCheckStep({
+      runId: input.runId,
+      side: "right",
+      imageBase64: halves.rightBase64,
+      keys: input.keys,
+      accessMode: input.accessMode,
+    }),
+  ]);
   await emit({
     type: "step",
     step: "quality_check",
@@ -226,77 +233,80 @@ export async function generateThumbnailWorkflow(
     }
   }
 
-  // 6. Upscale halves
-  await emit({ type: "step", step: "upscale_halves", status: "started" });
-  await updateRunStep({ runId: input.runId, patch: { currentStep: "upscale_halves" } });
-  const leftUp = await upscaleHalfStep({
-    runId: input.runId,
-    side: "left",
-    imageBase64: leftBase64,
-    keys: input.keys,
-    accessMode: input.accessMode,
-  });
-  const rightUp = await upscaleHalfStep({
-    runId: input.runId,
-    side: "right",
-    imageBase64: rightBase64,
-    keys: input.keys,
-    accessMode: input.accessMode,
-  });
-  await emit({
-    type: "step",
-    step: "upscale_halves",
-    status: "completed",
-    data: { leftUrl: leftUp.url, rightUrl: rightUp.url },
-  });
+  // 6+7. Upscale halves L+R + pickQuotes all in parallel — quotes only needs transcript+title (already available)
+  await updateRunStep({ runId: input.runId, patch: { currentStep: "upscale_and_quotes" } });
+  const [leftUp, rightUp, quotes] = await Promise.all([
+    (async () => {
+      await emit({ type: "step", step: "upscale_left", status: "started" });
+      const r = await upscaleHalfStep({
+        runId: input.runId,
+        side: "left",
+        imageBase64: leftBase64,
+        keys: input.keys,
+        accessMode: input.accessMode,
+      });
+      await emit({ type: "step", step: "upscale_left", status: "completed", data: { url: r.url } });
+      return r;
+    })(),
+    (async () => {
+      await emit({ type: "step", step: "upscale_right", status: "started" });
+      const r = await upscaleHalfStep({
+        runId: input.runId,
+        side: "right",
+        imageBase64: rightBase64,
+        keys: input.keys,
+        accessMode: input.accessMode,
+      });
+      await emit({ type: "step", step: "upscale_right", status: "completed", data: { url: r.url } });
+      return r;
+    })(),
+    (async () => {
+      await emit({ type: "step", step: "pick_quotes", status: "started" });
+      const r = await pickQuotesStep({
+        runId: input.runId,
+        transcript: transcript.transcript,
+        videoTitle: thumb.title,
+        keys: input.keys,
+        accessMode: input.accessMode,
+      });
+      await emit({ type: "step", step: "pick_quotes", status: "completed", data: r });
+      return r;
+    })(),
+  ]);
 
-  // 7. Pick quotes
-  await emit({ type: "step", step: "pick_quotes", status: "started" });
-  await updateRunStep({ runId: input.runId, patch: { currentStep: "pick_quotes" } });
-  const quotes = await pickQuotesStep({
-    runId: input.runId,
-    transcript: transcript.transcript,
-    videoTitle: thumb.title,
-    keys: input.keys,
-    accessMode: input.accessMode,
-  });
-  await emit({
-    type: "step",
-    step: "pick_quotes",
-    status: "completed",
-    data: quotes,
-  });
-
-  // 8. Compose 3 variants — one per top quote
+  // 8. Compose 3 variants in parallel — independent Gemini calls, biggest single win
   await emit({ type: "step", step: "compose_variants", status: "started" });
   await updateRunStep({ runId: input.runId, patch: { currentStep: "compose_variants" } });
   const top3 = [...quotes.quotes]
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
   const useGemini = input.useGeminiCompose ?? false;
-  const variants: Variant[] = [];
-  for (let i = 0; i < top3.length; i++) {
-    const v = await composeVariantStep({
-      runId: input.runId,
-      variantId: String.fromCharCode(97 + i),
-      leftUpscaledBase64: leftUp.base64,
-      rightUpscaledBase64: rightUp.base64,
-      quote: top3[i].text,
-      emphasisWords: top3[i].emphasisWords ?? [],
-      quoteScore: top3[i].score,
-      style,
-      keys: input.keys,
-      accessMode: input.accessMode,
-      useGeminiCompose: useGemini,
-    });
-    variants.push(v);
-    await emit({
-      type: "step",
-      step: `variant_${v.id}`,
-      status: "completed",
-      data: v,
-    });
-  }
+  const variants = await Promise.all(
+    top3.map((q, i) =>
+      (async () => {
+        const v = await composeVariantStep({
+          runId: input.runId,
+          variantId: String.fromCharCode(97 + i),
+          leftUpscaledBase64: leftUp.base64,
+          rightUpscaledBase64: rightUp.base64,
+          quote: q.text,
+          emphasisWords: q.emphasisWords ?? [],
+          quoteScore: q.score,
+          style,
+          keys: input.keys,
+          accessMode: input.accessMode,
+          useGeminiCompose: useGemini,
+        });
+        await emit({
+          type: "step",
+          step: `variant_${v.id}`,
+          status: "completed",
+          data: v,
+        });
+        return v;
+      })(),
+    ),
+  );
 
   await updateRunStep({
     runId: input.runId,
