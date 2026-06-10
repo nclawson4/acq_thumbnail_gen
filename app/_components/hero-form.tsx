@@ -109,11 +109,15 @@ export function HeroForm() {
   );
 
   return (
-    <form onSubmit={onSubmit} className="w-full max-w-3xl mx-auto">
+    <form onSubmit={onSubmit} autoComplete="off" className="w-full max-w-3xl mx-auto">
       <div className="flex flex-col sm:flex-row gap-2">
         <input
           type="url"
           required
+          name="youtube-url"
+          autoComplete="off"
+          data-1p-ignore
+          data-lpignore="true"
           value={videoUrl}
           onChange={(e) => setVideoUrl(e.target.value)}
           placeholder="Paste a YouTube URL"
@@ -123,6 +127,10 @@ export function HeroForm() {
         <input
           type="password"
           required
+          name="demo-passcode"
+          autoComplete="one-time-code"
+          data-1p-ignore
+          data-lpignore="true"
           value={passcode}
           onChange={(e) => setPasscode(e.target.value)}
           placeholder="Passcode"
