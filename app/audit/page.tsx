@@ -64,7 +64,6 @@ const VERDICTS: Record<string, Verdict> = {
   "3t6sA6OmzHA": { tier: "B", reason: "Re-run: tighter right crop, head-to-waist. Heads roughly similar.", rerun: true, previousTier: "C" },
   YJy7PL2apUo: { tier: "C", reason: "Left chest-up vs right full body.", subReason: "size-mismatch" },
   fNPlt_C54KM: { tier: "C", reason: "Left chest-up vs right head-to-mid-thigh.", subReason: "size-mismatch" },
-  lqKx0GDHFX8: { tier: "A", reason: "Manual fix: tight Alex crop sized so head matches the guest's head size in pixels.", rerun: true, previousTier: "C" },
   xRzZaHUOk4E: { tier: "C", reason: "Left chest-up vs right head-to-mid-thigh.", subReason: "size-mismatch" },
 };
 
