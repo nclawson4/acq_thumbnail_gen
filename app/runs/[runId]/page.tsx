@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { RunViewer } from "./run-viewer";
 
 export default async function RunPage({
@@ -8,6 +9,12 @@ export default async function RunPage({
   const { runId } = await params;
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
+      <Link
+        href="/"
+        className="inline-flex items-center gap-1 text-sm text-[color:var(--muted-foreground)] hover:text-foreground transition-colors mb-4"
+      >
+        ← Back home
+      </Link>
       <h1 className="text-2xl font-semibold tracking-tight">
         Run <span className="font-mono text-[color:var(--muted-foreground)]">{runId.slice(0, 8)}</span>
       </h1>
