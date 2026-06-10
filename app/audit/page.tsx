@@ -9,6 +9,8 @@ type Verdict = {
   tier: Tier;
   reason: string;
   subReason?: "head-cut-off" | "wrong-subject" | "size-mismatch";
+  rerun?: boolean;
+  previousTier?: Tier;
 };
 
 const VERDICTS: Record<string, Verdict> = {
@@ -36,15 +38,15 @@ const VERDICTS: Record<string, Verdict> = {
   "7w1HQAvlLZk": { tier: "B", reason: "Right slightly wider, heads similar." },
   "2RYARn7GMek": { tier: "B", reason: "Right wider (arms crossed); heads similar." },
   "6WPNzaWuAic": { tier: "B", reason: "Right wider; heads similar." },
-  I1NYJ8dm4Jk: { tier: "A", reason: "Re-run: both chest-up to head-to-waist, heads now match." },
+  I1NYJ8dm4Jk: { tier: "A", reason: "Re-run: both chest-up to head-to-waist, heads now match.", rerun: true, previousTier: "B" },
   IVNuDhV1uw4: { tier: "B", reason: "Right gesturing arms widen frame; heads similar." },
   OulGPT2kZ7c: { tier: "B", reason: "Mild size drift; acceptable." },
   Uw9weyjJL1A: { tier: "B", reason: "Right slightly smaller head, edge case." },
   bYGRh4ZOdUo: { tier: "B", reason: "Right head-to-waist vs left chest-up; heads similar." },
 
   // C — major issues
-  LGbS0GOZBNE: { tier: "B", reason: "Re-run: head no longer cut off. Mild size drift (right slightly wider) but heads similar." },
-  oIvIf1Rv7vg: { tier: "A", reason: "Re-run: head fully visible. Both chest-up framing." },
+  LGbS0GOZBNE: { tier: "B", reason: "Re-run: head no longer cut off. Mild size drift (right slightly wider) but heads similar.", rerun: true, previousTier: "C" },
+  oIvIf1Rv7vg: { tier: "A", reason: "Re-run: head fully visible. Both chest-up framing.", rerun: true, previousTier: "C" },
   "Sn5wBUC-SFk": { tier: "C", reason: "Source has no right-side host. Pipeline grabbed blurry audience members as the right subject.", subReason: "wrong-subject" },
 
   gMXG_HoYnRY: { tier: "C", reason: "Left chest-up vs right head-to-mid-thigh. Right head visibly smaller.", subReason: "size-mismatch" },
@@ -56,13 +58,13 @@ const VERDICTS: Record<string, Verdict> = {
   "EjBgv-DGJ-M": { tier: "C", reason: "Left chest-up vs right head-to-mid-thigh.", subReason: "size-mismatch" },
   "Ht9u-qEXTQY": { tier: "C", reason: "Left head+chest vs right head-to-thigh.", subReason: "size-mismatch" },
   "-G08--_mZaU": { tier: "C", reason: "Left chest-up vs right head-to-knee full body.", subReason: "size-mismatch" },
-  "0coMtm_i1UA": { tier: "C", reason: "Re-run: still left tight head vs right head-to-mid-thigh. Persistent size mismatch.", subReason: "size-mismatch" },
+  "0coMtm_i1UA": { tier: "C", reason: "Re-run: still left tight head vs right head-to-mid-thigh. Persistent size mismatch.", subReason: "size-mismatch", rerun: true, previousTier: "C" },
   "2PfbKVGNgPM": { tier: "C", reason: "Left chest-up vs right head-to-mid-thigh+full body.", subReason: "size-mismatch" },
-  "3t6sA6OmzHA": { tier: "B", reason: "Re-run: tighter right crop, head-to-waist. Heads roughly similar." },
+  "3t6sA6OmzHA": { tier: "B", reason: "Re-run: tighter right crop, head-to-waist. Heads roughly similar.", rerun: true, previousTier: "C" },
   YJy7PL2apUo: { tier: "C", reason: "Left chest-up vs right full body.", subReason: "size-mismatch" },
   fNPlt_C54KM: { tier: "C", reason: "Left chest-up vs right head-to-mid-thigh.", subReason: "size-mismatch" },
   lqKx0GDHFX8: { tier: "C", reason: "Left chest-up vs right full body.", subReason: "size-mismatch" },
-  rd_urnkST6g: { tier: "C", reason: "Re-run: still left tight head vs right head-to-mid-thigh full body. Persistent size mismatch.", subReason: "size-mismatch" },
+  rd_urnkST6g: { tier: "C", reason: "Re-run: still left tight head vs right head-to-mid-thigh full body. Persistent size mismatch.", subReason: "size-mismatch", rerun: true, previousTier: "C" },
   xRzZaHUOk4E: { tier: "C", reason: "Left chest-up vs right head-to-mid-thigh.", subReason: "size-mismatch" },
 };
 
@@ -106,6 +108,9 @@ export default async function AuditPage() {
     .map((p) => ({ ...p, verdict: VERDICTS[p.videoId] }))
     .filter((p): p is Pair & { verdict: Verdict } => p.verdict !== undefined)
     .sort((a, b) => {
+      // Re-runs pin to top so user can compare improvement at a glance.
+      const r = Number(!!b.verdict.rerun) - Number(!!a.verdict.rerun);
+      if (r !== 0) return r;
       const t = TIER_ORDER[a.verdict.tier] - TIER_ORDER[b.verdict.tier];
       if (t !== 0) return t;
       return a.videoId.localeCompare(b.videoId);
@@ -116,6 +121,7 @@ export default async function AuditPage() {
     B: annotated.filter((p) => p.verdict.tier === "B").length,
     C: annotated.filter((p) => p.verdict.tier === "C").length,
   };
+  const reruns = annotated.filter((p) => p.verdict.rerun);
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-10">
@@ -127,17 +133,39 @@ export default async function AuditPage() {
         <p className="text-xs text-[color:var(--muted-foreground)] max-w-3xl">
           Criterion: each person properly zoomed in, matches source pose/clothes/background, both
           subjects share roughly the same body-part-to-head framing (e.g. both chest-up, or both
-          head-to-waist). Sorted C → B → A so the problems surface first.
+          head-to-waist). Re-runs are pinned to the top; the rest sorts C → B → A.
         </p>
       </div>
 
+      {reruns.length > 0 && (
+        <div className="mb-6">
+          <div className="mb-3 flex items-center gap-3">
+            <h2 className="text-lg font-semibold tracking-tight">Latest re-runs</h2>
+            <span className="text-xs font-mono uppercase tracking-[0.15em] text-[color:var(--muted-foreground)]">
+              {reruns.length} videos · {reruns.filter((p) => improved(p.verdict)).length} improved
+            </span>
+          </div>
+          <div className="space-y-4">
+            {reruns.map((p) => (
+              <AuditRow key={p.videoId} pair={p} verdict={p.verdict} />
+            ))}
+          </div>
+          <div className="my-8 border-t border-[color:var(--border)]" />
+        </div>
+      )}
+
       <div className="space-y-4">
-        {annotated.map((p) => (
+        {annotated.filter((p) => !p.verdict.rerun).map((p) => (
           <AuditRow key={p.videoId} pair={p} verdict={p.verdict} />
         ))}
       </div>
     </div>
   );
+}
+
+function improved(v: Verdict): boolean {
+  if (!v.previousTier) return false;
+  return TIER_ORDER[v.tier] > TIER_ORDER[v.previousTier];
 }
 
 function AuditRow({ pair, verdict }: { pair: Pair; verdict: Verdict }) {
@@ -153,10 +181,23 @@ function AuditRow({ pair, verdict }: { pair: Pair; verdict: Verdict }) {
         <Thumb src={`https://i.ytimg.com/vi/${pair.videoId}/maxresdefault.jpg`} label="SOURCE" />
         <Thumb src={pair.newUrl} label="GENERATED" />
         <div className="flex flex-col gap-2 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className={`${s.bg} ${s.text} text-[11px] font-mono uppercase tracking-[0.15em] px-2 py-1 rounded`}>
               {s.label}
             </span>
+            {verdict.rerun && verdict.previousTier && (
+              <span
+                className={`text-[10px] font-mono uppercase tracking-[0.15em] px-2 py-0.5 rounded ${
+                  improved(verdict)
+                    ? "bg-emerald-500/15 text-emerald-500"
+                    : verdict.previousTier === verdict.tier
+                      ? "bg-[color:var(--muted)]/50 text-[color:var(--muted-foreground)]"
+                      : "bg-red-500/15 text-red-500"
+                }`}
+              >
+                Re-run · {verdict.previousTier} → {verdict.tier}
+              </span>
+            )}
             {verdict.subReason && (
               <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-[color:var(--muted-foreground)] border border-[color:var(--border)] px-2 py-0.5 rounded">
                 {verdict.subReason.replace(/-/g, " ")}
