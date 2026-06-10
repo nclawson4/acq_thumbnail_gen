@@ -45,6 +45,7 @@ const VERDICTS: Record<string, Verdict> = {
   bYGRh4ZOdUo: { tier: "B", reason: "Right head-to-waist vs left chest-up; heads similar." },
 
   // C — major issues
+  LGbS0GOZBNE: { tier: "A", reason: "Manual fix: hand-picked crop boxes bypass the splitX detector because Alex straddles the centerline in the source.", rerun: true, previousTier: "C" },
   oIvIf1Rv7vg: { tier: "A", reason: "Re-run: head fully visible. Both chest-up framing.", rerun: true, previousTier: "C" },
   "Sn5wBUC-SFk": { tier: "C", reason: "Source has no right-side host. Pipeline grabbed blurry audience members as the right subject.", subReason: "wrong-subject" },
 
