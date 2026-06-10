@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 type StepEvent = {
   type: "step" | "error" | "done";
@@ -27,7 +26,6 @@ type RunRow = {
 export function RunViewer({ runId }: { runId: string }) {
   const [events, setEvents] = useState<StepEvent[]>([]);
   const [run, setRun] = useState<RunRow | null>(null);
-  const [streaming, setStreaming] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,7 +36,6 @@ export function RunViewer({ runId }: { runId: string }) {
           const j = await res.json();
           setRun(j.run);
           if (j.run?.status === "done" || j.run?.status === "error") {
-            setStreaming(false);
             break;
           }
         }
@@ -92,133 +89,70 @@ export function RunViewer({ runId }: { runId: string }) {
       []);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr,360px] gap-6">
-      <div className="space-y-6">
-        {run?.videoTitle && (
-          <Card>
-            <CardTitle>{run.videoTitle}</CardTitle>
-            <CardDescription className="mt-1">
-              <a
-                href={run.youtubeUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline"
-              >
-                {run.youtubeUrl}
-              </a>
-            </CardDescription>
-          </Card>
-        )}
+    <div className="space-y-6">
+      {run?.videoTitle && (
+        <Card>
+          <CardTitle>{run.videoTitle}</CardTitle>
+          <CardDescription className="mt-1">
+            <a
+              href={run.youtubeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              {run.youtubeUrl}
+            </a>
+          </CardDescription>
+        </Card>
+      )}
 
-        {variants.length > 0 && (
-          <Card>
-            <CardTitle>Final variants</CardTitle>
-            <CardDescription>
-              Pick the one you like best. Right-click to save.
-            </CardDescription>
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-              {variants.map((v) => (
-                <div key={v.id} className="space-y-2">
-                  <div className="relative aspect-video overflow-hidden rounded-md border border-[color:var(--border)]">
+      {run?.error && (
+        <Card>
+          <CardTitle>Error</CardTitle>
+          <CardDescription className="mt-1 text-red-600 dark:text-red-400">
+            {run.error}
+          </CardDescription>
+        </Card>
+      )}
+
+      {variants.length > 0 && (
+        <Card>
+          <CardTitle>Final variants</CardTitle>
+          <CardDescription>
+            Pick the one you like best. Hover to inspect detail. Right-click to save.
+          </CardDescription>
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 pb-32 md:pb-0">
+            {variants.map((v) => (
+              <div key={v.id} className="space-y-2">
+                <div className="relative aspect-video">
+                  <div className="absolute inset-0 rounded-md border border-[color:var(--border)] overflow-hidden transition-transform duration-200 ease-out origin-center hover:scale-[2.5] hover:z-50 hover:relative hover:shadow-2xl">
                     <Image
                       src={v.url}
                       alt={`Variant ${v.id}`}
                       width={1280}
                       height={720}
-                      className="object-cover"
+                      className="object-cover w-full h-full"
                       unoptimized
                     />
                   </div>
-                  {v.quote && (
-                    <p className="text-xs font-mono text-[color:var(--muted-foreground)]">
-                      &ldquo;{v.quote}&rdquo;
-                    </p>
-                  )}
-                  <a
-                    href={v.url}
-                    download={`thumbnail-${v.id}.png`}
-                    className="text-xs underline"
-                  >
-                    Download
-                  </a>
                 </div>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        <Card>
-          <CardTitle>Step log</CardTitle>
-          <div className="mt-4 space-y-2 max-h-96 overflow-y-auto font-mono text-xs">
-            {events.length === 0 && streaming && (
-              <p className="text-[color:var(--muted-foreground)]">
-                Waiting for first event...
-              </p>
-            )}
-            {events.map((e, i) => (
-              <div
-                key={i}
-                className="border-b border-[color:var(--border)] pb-2 last:border-0"
-              >
-                {e.type === "step" && (
-                  <div className="flex items-center gap-2">
-                    <Badge tone={e.status === "completed" ? "success" : "muted"}>
-                      {e.status}
-                    </Badge>
-                    <span className="font-semibold">{e.step}</span>
-                  </div>
+                {v.quote && (
+                  <p className="text-xs font-mono text-[color:var(--muted-foreground)]">
+                    &ldquo;{v.quote}&rdquo;
+                  </p>
                 )}
-                {e.type === "error" && (
-                  <div className="flex items-center gap-2">
-                    <Badge tone="error">error</Badge>
-                    <span>{e.message}</span>
-                  </div>
-                )}
-                {e.type === "done" && (
-                  <div className="flex items-center gap-2">
-                    <Badge tone="success">done</Badge>
-                    <span>Run complete.</span>
-                  </div>
-                )}
+                <a
+                  href={v.url}
+                  download={`thumbnail-${v.id}.png`}
+                  className="text-xs underline"
+                >
+                  Download
+                </a>
               </div>
             ))}
           </div>
         </Card>
-      </div>
-
-      <aside className="space-y-4">
-        <Card>
-          <CardTitle>Status</CardTitle>
-          <div className="mt-2 space-y-2 text-sm">
-            <div>
-              State: <Badge tone={statusTone(run?.status)}>{run?.status ?? "..."}</Badge>
-            </div>
-            {run?.currentStep && (
-              <div className="text-[color:var(--muted-foreground)]">
-                Step: <span className="font-mono">{run.currentStep}</span>
-              </div>
-            )}
-            {run?.error && (
-              <div className="text-red-600 dark:text-red-400">{run.error}</div>
-            )}
-          </div>
-        </Card>
-        <Card>
-          <CardTitle>What&apos;s happening</CardTitle>
-          <CardDescription className="mt-1">
-            The workflow fetches the thumbnail from YouTube&apos;s CDN, pulls the transcript via
-            Vercel Sandbox running yt-dlp, then Claude detects the crop point and Gemini
-            upscales each half. Quotes are mined from the transcript, and three styled variants
-            are composed.
-          </CardDescription>
-        </Card>
-      </aside>
+      )}
     </div>
   );
-}
-
-function statusTone(s: string | null | undefined) {
-  if (s === "done") return "success" as const;
-  if (s === "error") return "error" as const;
-  return "default" as const;
 }
