@@ -13,7 +13,7 @@ type Pair = {
 const SLOTS_DESKTOP = 5;
 const SLOTS_MOBILE = 3;
 const CENTER_SCALE_DESKTOP = 2;
-const CENTER_SCALE_MOBILE = 2.5;
+const CENTER_SCALE_MOBILE = 3;
 const PAUSE_OLD_MS = 1000;
 const SWIPE_MS = 500;
 const PAUSE_NEW_MS = 1000;
@@ -136,7 +136,7 @@ export function BeforeAfterCarousel({
   return (
     <div className="w-full">
       {/* Carousel viewport — pad vertically so the scaled-up center has room. */}
-      <div className="relative w-full overflow-hidden py-16 md:py-20">
+      <div className="relative w-full overflow-hidden py-24 md:py-20">
         <div className="pointer-events-none absolute inset-y-0 left-0 w-24 z-20 bg-gradient-to-r from-background to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 right-0 w-24 z-20 bg-gradient-to-l from-background to-transparent" />
 
