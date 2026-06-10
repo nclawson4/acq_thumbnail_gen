@@ -77,9 +77,19 @@ export function BeforeAfterCarousel({ pairs }: { pairs: Pair[] }) {
     if (items.length === 0) return;
     if (virtualIndex >= items.length) {
       const t = setTimeout(() => {
+        // Disable BOTH transitions before snap. Otherwise the items at the new
+        // visible-window positions (which had slotPos << 0 and were rendering
+        // "fully new") suddenly get slotPos 0/+1/+2 and their clip-path flips
+        // from 0% to 100%. With swipeOn=true, CSS animates that flip → 2-3
+        // tiles do a reverse swipe at once. Disabling swipeOn makes the
+        // clip-path change snap instantly, invisibly.
         setSlideOn(false);
+        setSwipeOn(false);
         setVirtualIndex(0);
-        const t2 = setTimeout(() => setSlideOn(true), 30);
+        const t2 = setTimeout(() => {
+          setSlideOn(true);
+          setSwipeOn(true);
+        }, 30);
         return () => clearTimeout(t2);
       }, SLIDE_MS + 30);
       return () => clearTimeout(t);
