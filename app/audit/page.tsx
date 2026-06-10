@@ -46,6 +46,7 @@ const VERDICTS: Record<string, Verdict> = {
 
   // C — major issues
   LGbS0GOZBNE: { tier: "A", reason: "Manual fix: hand-picked crop boxes bypass the splitX detector because Alex straddles the centerline in the source.", rerun: true, previousTier: "C" },
+  rd_urnkST6g: { tier: "A", reason: "Manual fix: hand-picked matched chest-up crops for both subjects.", rerun: true, previousTier: "C" },
   oIvIf1Rv7vg: { tier: "A", reason: "Re-run: head fully visible. Both chest-up framing.", rerun: true, previousTier: "C" },
   "Sn5wBUC-SFk": { tier: "C", reason: "Source has no right-side host. Pipeline grabbed blurry audience members as the right subject.", subReason: "wrong-subject" },
 
