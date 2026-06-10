@@ -13,7 +13,7 @@ type Pair = {
 const SLOTS_DESKTOP = 5;
 const SLOTS_MOBILE = 3;
 const CENTER_SCALE_DESKTOP = 2;
-const CENTER_SCALE_MOBILE = 3;
+const CENTER_SCALE_MOBILE = 2.5;
 const PAUSE_OLD_MS = 1000;
 const SWIPE_MS = 500;
 const PAUSE_NEW_MS = 1000;
@@ -221,7 +221,7 @@ function PairTile({
     <div
       className={`relative aspect-video w-full rounded-xl overflow-hidden border border-[color:var(--border)] bg-black transition-transform ${
         isCenter
-          ? "z-10 shadow-2xl ring-2 ring-emerald-500/60"
+          ? "z-10 ring-2 ring-emerald-500/60"
           : "scale-100 opacity-80"
       }`}
       style={{
