@@ -28,6 +28,9 @@ const BodySchema = z.object({
   hostSide: z.enum(["left", "right"]).default("right"),
   useGeminiCompose: z.boolean().default(false),
   forceRerun: z.boolean().default(false),
+  // Optional override for when YouTube's default thumbnail is unusable.
+  // Skips the YouTube CDN fetch and uses this image as the pipeline input.
+  sourceImageUrl: z.string().url().optional(),
 });
 
 export async function POST(request: Request) {
@@ -153,6 +156,7 @@ export async function POST(request: Request) {
       accessMode: grant.mode,
       keys,
       useGeminiCompose: parsed.data.useGeminiCompose,
+      sourceImageUrl: parsed.data.sourceImageUrl,
     },
   ]);
 

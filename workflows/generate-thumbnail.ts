@@ -31,6 +31,10 @@ export type GenerateInput = {
   accessMode: "demo" | "byok";
   keys: ProviderKeys;
   useGeminiCompose?: boolean;
+  // Optional escape hatch when YouTube's default thumbnail is unusable
+  // (e.g. autonomous-publishing channels that ship without a generated
+  // hero frame). Caller pre-extracts a frame and supplies its URL.
+  sourceImageUrl?: string;
 };
 
 export type GenerateProgress =
@@ -77,6 +81,7 @@ export async function generateThumbnailWorkflow(
       const r = await fetchThumbnailStep({
         runId: input.runId,
         videoUrl: input.videoUrl,
+        sourceImageUrl: input.sourceImageUrl,
       });
       await updateRunStep({
         runId: input.runId,
