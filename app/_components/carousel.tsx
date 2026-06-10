@@ -198,8 +198,9 @@ function PairTile({
         src={pair.newUrl}
         alt={`Generated thumbnail for ${pair.title ?? pair.videoId}`}
         fill
-        sizes="(max-width: 768px) 30vw, 20vw"
-        quality={70}
+        // Center tile is CSS-scaled 2×, so request a bigger source.
+        sizes="(max-width: 768px) 60vw, 40vw"
+        quality={92}
         priority={priority}
         loading={priority ? undefined : "lazy"}
         className="object-cover"
