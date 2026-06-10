@@ -2,7 +2,7 @@
 
 **AI-powered YouTube thumbnail generator for two-host interview videos.**
 
-🌐 **Live demo:** [https://acqthumbnailgen.vercel.app](https://acqthumbnailgen.vercel.app) *(passcode-gated; contact the operator)*
+🌐 **Live demo:** [https://acq-thumbnails.vercel.app](https://acq-thumbnails.vercel.app) *(passcode-gated; contact the operator)*
 
 > Paste a YouTube URL. The pipeline crops the host and guest, upscales each with Gemini, mines the transcript for an impactful 2–6 word headline, and composes three on-brand thumbnail variants — all in one durable agentic workflow.
 

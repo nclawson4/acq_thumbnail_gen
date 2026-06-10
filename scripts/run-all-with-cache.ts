@@ -11,7 +11,7 @@ import path from "node:path";
 import { neon } from "@neondatabase/serverless";
 
 const BATCH_FILE = path.join(process.cwd(), "evals", "batch.json");
-const BASE_URL = "https://acqthumbnailgen.vercel.app";
+const BASE_URL = "https://acq-thumbnails.vercel.app";
 const SUBMIT_INTERVAL_MS = 7000; // 10/60s = stay safely under
 const POLL_INTERVAL_MS = 15000;
 const POLL_TIMEOUT_MS = 20 * 60 * 1000;

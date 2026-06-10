@@ -18,7 +18,7 @@ const IDS = [
   "0coMtm_i1UA",
 ];
 
-const BASE_URL = "https://acqthumbnailgen.vercel.app";
+const BASE_URL = "https://acq-thumbnails.vercel.app";
 const SUBMIT_INTERVAL_MS = 7000;
 const POLL_INTERVAL_MS = 15000;
 const POLL_TIMEOUT_MS = 20 * 60 * 1000;
