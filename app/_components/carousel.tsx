@@ -10,8 +10,10 @@ type Pair = {
   newUrl: string;
 };
 
-const SLOTS_VISIBLE = 5;
-const CENTER_OFFSET = Math.floor(SLOTS_VISIBLE / 2); // 2 → slot 0 is the visual center
+const SLOTS_DESKTOP = 5;
+const SLOTS_MOBILE = 3;
+const CENTER_SCALE_DESKTOP = 2;
+const CENTER_SCALE_MOBILE = 1.55;
 const PAUSE_OLD_MS = 1000;
 const SWIPE_MS = 500;
 const PAUSE_NEW_MS = 1000;
@@ -22,12 +24,30 @@ function youtubeMqDefault(videoId: string): string {
 }
 
 export function BeforeAfterCarousel({ pairs }: { pairs: Pair[] }) {
+  // Responsive slot count: 5 on desktop, 3 on mobile. Default to desktop so SSR
+  // renders the wider layout; useEffect on mount narrows it on small screens.
+  const [slotsVisible, setSlotsVisible] = useState(SLOTS_DESKTOP);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    function update() {
+      setSlotsVisible(mq.matches ? SLOTS_MOBILE : SLOTS_DESKTOP);
+    }
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  const centerOffset = Math.floor(slotsVisible / 2);
+  const centerScale =
+    slotsVisible === SLOTS_MOBILE ? CENTER_SCALE_MOBILE : CENTER_SCALE_DESKTOP;
+
   const items: Pair[] = (() => {
     if (pairs.length === 0) return [];
-    if (pairs.length >= SLOTS_VISIBLE) return pairs;
+    if (pairs.length >= slotsVisible) return pairs;
     const out: Pair[] = [];
-    while (out.length < SLOTS_VISIBLE) out.push(...pairs);
-    return out.slice(0, Math.max(SLOTS_VISIBLE, pairs.length));
+    while (out.length < slotsVisible) out.push(...pairs);
+    return out.slice(0, Math.max(slotsVisible, pairs.length));
   })();
 
   // Duplicate the strip so the slide can advance past the end and snap back invisibly.
@@ -114,18 +134,18 @@ export function BeforeAfterCarousel({ pairs }: { pairs: Pair[] }) {
         <div
           className="flex items-center"
           style={{
-            width: `${(strip.length / SLOTS_VISIBLE) * 100}%`,
+            width: `${(strip.length / slotsVisible) * 100}%`,
             transform: `translateX(-${(virtualIndex / strip.length) * 100}%)`,
             transition: slideOn ? `transform ${SLIDE_MS}ms ease` : "none",
           }}
         >
           {strip.map((p, i) => {
-            const slotPos = i - virtualIndex - CENTER_OFFSET;
+            const slotPos = i - virtualIndex - centerOffset;
             const isCenter = slotPos === 0;
             const isLeftOfCenter = slotPos < 0;
-            const isVisible = slotPos >= -CENTER_OFFSET && slotPos <= CENTER_OFFSET;
+            const isVisible = slotPos >= -centerOffset && slotPos <= centerOffset;
             const tileSwipePct = isCenter ? swipePct : isLeftOfCenter ? 100 : 0;
-            const priority = i < SLOTS_VISIBLE;
+            const priority = i < slotsVisible;
             return (
               <div
                 key={`${p.videoId}-${i}`}
@@ -139,6 +159,7 @@ export function BeforeAfterCarousel({ pairs }: { pairs: Pair[] }) {
                   visible={isVisible}
                   priority={priority}
                   swipeOn={swipeOn}
+                  centerScale={centerScale}
                 />
               </div>
             );
@@ -177,6 +198,7 @@ function PairTile({
   visible,
   priority,
   swipeOn,
+  centerScale,
 }: {
   pair: Pair;
   swipePct: number;
@@ -184,15 +206,19 @@ function PairTile({
   visible: boolean;
   priority: boolean;
   swipeOn: boolean;
+  centerScale: number;
 }) {
   return (
     <div
       className={`relative aspect-video w-full rounded-xl overflow-hidden border border-[color:var(--border)] bg-black transition-transform ${
         isCenter
-          ? "z-10 scale-[2] shadow-2xl ring-2 ring-emerald-500/60"
+          ? "z-10 shadow-2xl ring-2 ring-emerald-500/60"
           : "scale-100 opacity-80"
       }`}
-      style={{ transformOrigin: "center" }}
+      style={{
+        transformOrigin: "center",
+        transform: isCenter ? `scale(${centerScale})` : undefined,
+      }}
     >
       <Image
         src={youtubeMqDefault(pair.videoId)}
