@@ -48,56 +48,74 @@ export function BeforeAfterGrid({ pairs }: { pairs: Pair[] }) {
 function PairRow({ pair }: { pair: Pair }) {
   return (
     <div className="rounded-2xl border border-[color:var(--border)] p-3 bg-[color:var(--card)]">
-      <div className="grid grid-cols-2 gap-2">
-        <Thumb
+      <div className="grid grid-cols-2 gap-3">
+        <LabeledThumb
           src={`https://i.ytimg.com/vi/${pair.videoId}/mqdefault.jpg`}
           alt={`Original thumbnail for ${pair.title ?? pair.videoId}`}
-          label="BEFORE"
-          labelBg="bg-white text-black"
+          label="Before"
+          labelTone="muted"
         />
-        <Thumb
+        <LabeledThumb
           src={pair.newUrl}
           alt={`Generated thumbnail for ${pair.title ?? pair.videoId}`}
-          label="AFTER"
-          labelBg="bg-emerald-500 text-white"
+          label="After"
+          labelTone="accent"
         />
       </div>
-      {pair.title && (
-        <div className="mt-3 px-1 text-sm leading-snug line-clamp-2 text-[color:var(--foreground)]">
-          {pair.title}
-        </div>
-      )}
+      <div className="mt-3 px-1 flex items-start justify-between gap-3">
+        {pair.title ? (
+          <div className="text-sm leading-snug line-clamp-2 text-[color:var(--foreground)] flex-1">
+            {pair.title}
+          </div>
+        ) : (
+          <div className="text-sm text-[color:var(--muted-foreground)] flex-1">
+            Untitled
+          </div>
+        )}
+        <a
+          href={`https://www.youtube.com/watch?v=${pair.videoId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 text-xs text-[color:var(--muted-foreground)] hover:text-foreground underline underline-offset-4"
+        >
+          Watch ↗
+        </a>
+      </div>
     </div>
   );
 }
 
-function Thumb({
+function LabeledThumb({
   src,
   alt,
   label,
-  labelBg,
+  labelTone,
 }: {
   src: string;
   alt: string;
   label: string;
-  labelBg: string;
+  labelTone: "muted" | "accent";
 }) {
   return (
-    <div className="relative aspect-video rounded-lg overflow-hidden bg-black border border-[color:var(--border)]">
-      <Image
-        src={src}
-        alt={alt}
-        fill
-        sizes="(max-width: 768px) 50vw, 22vw"
-        quality={60}
-        loading="lazy"
-        className="object-cover"
-      />
-      <span
-        className={`absolute bottom-2 left-2 px-1.5 py-0.5 rounded text-[10px] font-mono ${labelBg}`}
+    <div className="space-y-1.5">
+      <div
+        className={`text-[10px] uppercase tracking-[0.2em] font-mono ${
+          labelTone === "accent" ? "text-emerald-500" : "text-[color:var(--muted-foreground)]"
+        }`}
       >
         {label}
-      </span>
+      </div>
+      <div className="relative aspect-video rounded-lg overflow-hidden bg-black border border-[color:var(--border)]">
+        <Image
+          src={src}
+          alt={alt}
+          fill
+          sizes="(max-width: 768px) 50vw, 22vw"
+          quality={60}
+          loading="lazy"
+          className="object-cover"
+        />
+      </div>
     </div>
   );
 }

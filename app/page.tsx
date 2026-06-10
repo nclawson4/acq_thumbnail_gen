@@ -52,7 +52,7 @@ export default async function Home() {
             AI thumbnail pipeline · Live demo
           </span>
           <h1 className="text-3xl md:text-5xl font-semibold leading-[1.05] tracking-tight">
-            Paste a podcast URL. Get production-grade thumbnails.
+            Paste a workshop URL. Get production-grade thumbnails.
           </h1>
         </div>
 

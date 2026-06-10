@@ -11,6 +11,7 @@ type Pair = {
 };
 
 const SLOTS_VISIBLE = 5;
+const CENTER_OFFSET = Math.floor(SLOTS_VISIBLE / 2); // 2 → slot 0 is the visual center
 const PAUSE_OLD_MS = 1000;
 const SWIPE_MS = 500;
 const PAUSE_NEW_MS = 1000;
@@ -29,8 +30,7 @@ export function BeforeAfterCarousel({ pairs }: { pairs: Pair[] }) {
     return out.slice(0, Math.max(SLOTS_VISIBLE, pairs.length));
   })();
 
-  // Duplicate the strip once so the slide can keep advancing past the end,
-  // then snap back invisibly.
+  // Duplicate the strip so the slide can advance past the end and snap back invisibly.
   const strip: Pair[] = items.length > 0 ? [...items, ...items] : [];
 
   const [virtualIndex, setVirtualIndex] = useState(0);
@@ -49,18 +49,14 @@ export function BeforeAfterCarousel({ pairs }: { pairs: Pair[] }) {
     }
 
     async function loop() {
-      // Center starts showing OLD (swipePct=0)
       while (!cancelled) {
         await wait(PAUSE_OLD_MS);
         if (cancelled) return;
-        // Swipe to NEW
         setSwipePct(100);
         await wait(SWIPE_MS);
         if (cancelled) return;
         await wait(PAUSE_NEW_MS);
         if (cancelled) return;
-        // Silently reset the swipe state for the incoming center,
-        // then advance virtualIndex to trigger the slide.
         setSwipeOn(false);
         setSwipePct(0);
         setVirtualIndex((v) => v + 1);
@@ -77,7 +73,6 @@ export function BeforeAfterCarousel({ pairs }: { pairs: Pair[] }) {
     };
   }, [items.length]);
 
-  // When virtualIndex reaches items.length, snap back to 0 invisibly
   useEffect(() => {
     if (items.length === 0) return;
     if (virtualIndex >= items.length) {
@@ -100,43 +95,66 @@ export function BeforeAfterCarousel({ pairs }: { pairs: Pair[] }) {
   }
 
   return (
-    <div className="relative w-full overflow-hidden">
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-24 z-10 bg-gradient-to-r from-background to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 w-24 z-10 bg-gradient-to-l from-background to-transparent" />
+    <div className="w-full">
+      {/* Carousel viewport — pad vertically so the scaled-up center has room. */}
+      <div className="relative w-full overflow-hidden py-16 md:py-20">
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-24 z-20 bg-gradient-to-r from-background to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-24 z-20 bg-gradient-to-l from-background to-transparent" />
 
-      <div
-        className="flex"
-        style={{
-          width: `${(strip.length / SLOTS_VISIBLE) * 100}%`,
-          transform: `translateX(-${(virtualIndex / strip.length) * 100}%)`,
-          transition: slideOn ? `transform ${SLIDE_MS}ms ease` : "none",
-        }}
-      >
-        {strip.map((p, i) => {
-          const slotPos = i - virtualIndex;
-          const isCenter = slotPos === 0;
-          const isLeftOfCenter = slotPos < 0;
-          const isVisible = slotPos >= -2 && slotPos <= 2;
-          const tileSwipePct = isCenter ? swipePct : isLeftOfCenter ? 100 : 0;
-          // Prioritize loading for the first 5 items only — rest stay lazy.
-          const priority = i < SLOTS_VISIBLE;
-          return (
-            <div
-              key={`${p.videoId}-${i}`}
-              className="px-2 box-border"
-              style={{ width: `${100 / strip.length}%` }}
-            >
-              <PairTile
-                pair={p}
-                swipePct={tileSwipePct}
-                emphasized={isCenter}
-                visible={isVisible}
-                priority={priority}
-                swipeOn={swipeOn}
-              />
-            </div>
-          );
-        })}
+        <div
+          className="flex items-center"
+          style={{
+            width: `${(strip.length / SLOTS_VISIBLE) * 100}%`,
+            transform: `translateX(-${(virtualIndex / strip.length) * 100}%)`,
+            transition: slideOn ? `transform ${SLIDE_MS}ms ease` : "none",
+          }}
+        >
+          {strip.map((p, i) => {
+            const slotPos = i - virtualIndex - CENTER_OFFSET;
+            const isCenter = slotPos === 0;
+            const isLeftOfCenter = slotPos < 0;
+            const isVisible = slotPos >= -CENTER_OFFSET && slotPos <= CENTER_OFFSET;
+            const tileSwipePct = isCenter ? swipePct : isLeftOfCenter ? 100 : 0;
+            const priority = i < SLOTS_VISIBLE;
+            return (
+              <div
+                key={`${p.videoId}-${i}`}
+                className="px-2 box-border"
+                style={{ width: `${100 / strip.length}%` }}
+              >
+                <PairTile
+                  pair={p}
+                  swipePct={tileSwipePct}
+                  isCenter={isCenter}
+                  visible={isVisible}
+                  priority={priority}
+                  swipeOn={swipeOn}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Off-image label indicator — fades between BEFORE and AFTER as the center swipes. */}
+      <div className="mt-2 flex items-center justify-center gap-4 text-[11px] uppercase tracking-[0.3em] font-mono">
+        <span
+          className={`transition-colors ${
+            swipePct < 50 ? "text-foreground" : "text-[color:var(--muted-foreground)]/50"
+          }`}
+        >
+          Before
+        </span>
+        <span aria-hidden className="text-[color:var(--muted-foreground)]/50">
+          →
+        </span>
+        <span
+          className={`transition-colors ${
+            swipePct >= 50 ? "text-emerald-500" : "text-[color:var(--muted-foreground)]/50"
+          }`}
+        >
+          After
+        </span>
       </div>
     </div>
   );
@@ -145,25 +163,26 @@ export function BeforeAfterCarousel({ pairs }: { pairs: Pair[] }) {
 function PairTile({
   pair,
   swipePct,
-  emphasized,
+  isCenter,
   visible,
   priority,
   swipeOn,
 }: {
   pair: Pair;
   swipePct: number;
-  emphasized: boolean;
+  isCenter: boolean;
   visible: boolean;
   priority: boolean;
   swipeOn: boolean;
 }) {
   return (
     <div
-      className={`relative aspect-video w-full rounded-xl overflow-hidden border border-[color:var(--border)] bg-black transition-all ${
-        emphasized
-          ? "scale-100 shadow-2xl ring-2 ring-emerald-500/60"
-          : "scale-90 opacity-70"
+      className={`relative aspect-video w-full rounded-xl overflow-hidden border border-[color:var(--border)] bg-black transition-transform ${
+        isCenter
+          ? "z-10 scale-[2] shadow-2xl ring-2 ring-emerald-500/60"
+          : "scale-100 opacity-80"
       }`}
+      style={{ transformOrigin: "center" }}
     >
       <Image
         src={youtubeMqDefault(pair.videoId)}
@@ -189,8 +208,7 @@ function PairTile({
           transition: swipeOn ? `clip-path ${SWIPE_MS}ms ease` : "none",
         }}
       />
-      {/* Swipe edge highlight only on currently-swiping center */}
-      {visible && swipePct > 0 && swipePct < 100 && (
+      {visible && isCenter && swipePct > 0 && swipePct < 100 && (
         <div
           className="absolute inset-y-0 w-[2px] bg-white/80 shadow-[0_0_18px_4px_rgba(255,255,255,0.55)]"
           style={{
@@ -199,22 +217,6 @@ function PairTile({
           }}
         />
       )}
-      <div className="absolute bottom-2 left-2 z-10 flex gap-1.5 text-[10px] font-mono">
-        <span
-          className={`px-1.5 py-0.5 rounded ${
-            swipePct >= 100 ? "bg-white/15 text-white/60" : "bg-white text-black"
-          }`}
-        >
-          BEFORE
-        </span>
-        <span
-          className={`px-1.5 py-0.5 rounded ${
-            swipePct >= 100 ? "bg-emerald-500 text-white" : "bg-white/15 text-white/60"
-          }`}
-        >
-          AFTER
-        </span>
-      </div>
     </div>
   );
 }
