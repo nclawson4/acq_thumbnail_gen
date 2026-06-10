@@ -45,7 +45,6 @@ const VERDICTS: Record<string, Verdict> = {
   bYGRh4ZOdUo: { tier: "B", reason: "Right head-to-waist vs left chest-up; heads similar." },
 
   // C — major issues
-  LGbS0GOZBNE: { tier: "B", reason: "Re-run: head no longer cut off. Mild size drift (right slightly wider) but heads similar.", rerun: true, previousTier: "C" },
   oIvIf1Rv7vg: { tier: "A", reason: "Re-run: head fully visible. Both chest-up framing.", rerun: true, previousTier: "C" },
   "Sn5wBUC-SFk": { tier: "C", reason: "Source has no right-side host. Pipeline grabbed blurry audience members as the right subject.", subReason: "wrong-subject" },
 
@@ -64,7 +63,6 @@ const VERDICTS: Record<string, Verdict> = {
   YJy7PL2apUo: { tier: "C", reason: "Left chest-up vs right full body.", subReason: "size-mismatch" },
   fNPlt_C54KM: { tier: "C", reason: "Left chest-up vs right head-to-mid-thigh.", subReason: "size-mismatch" },
   lqKx0GDHFX8: { tier: "C", reason: "Left chest-up vs right full body.", subReason: "size-mismatch" },
-  rd_urnkST6g: { tier: "C", reason: "Re-run: still left tight head vs right head-to-mid-thigh full body. Persistent size mismatch.", subReason: "size-mismatch", rerun: true, previousTier: "C" },
   xRzZaHUOk4E: { tier: "C", reason: "Left chest-up vs right head-to-mid-thigh.", subReason: "size-mismatch" },
 };
 
