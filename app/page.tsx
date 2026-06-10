@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { getDb } from "@/lib/db";
 import { sql } from "drizzle-orm";
 import { BeforeAfterCarousel } from "./_components/carousel";
@@ -67,6 +68,8 @@ export default async function Home() {
   const carouselPairs = CAROUSEL_VIDEO_IDS.map((id) => pairByVideoId.get(id)).filter(
     (p): p is Pair => p !== undefined,
   );
+  const ua = (await headers()).get("user-agent") ?? "";
+  const isMobileUA = /Mobi|Android|iPhone|iPad/i.test(ua);
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-10">
@@ -80,7 +83,7 @@ export default async function Home() {
           </h1>
         </div>
 
-        <BeforeAfterCarousel pairs={carouselPairs} />
+        <BeforeAfterCarousel pairs={carouselPairs} initialIsMobile={isMobileUA} />
 
         <HeroForm />
       </section>

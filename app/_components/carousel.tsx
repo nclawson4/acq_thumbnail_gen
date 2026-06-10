@@ -23,10 +23,19 @@ function youtubeMqDefault(videoId: string): string {
   return `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
 }
 
-export function BeforeAfterCarousel({ pairs }: { pairs: Pair[] }) {
-  // Responsive slot count: 5 on desktop, 3 on mobile. Default to desktop so SSR
-  // renders the wider layout; useEffect on mount narrows it on small screens.
-  const [slotsVisible, setSlotsVisible] = useState(SLOTS_DESKTOP);
+export function BeforeAfterCarousel({
+  pairs,
+  initialIsMobile = false,
+}: {
+  pairs: Pair[];
+  initialIsMobile?: boolean;
+}) {
+  // Server passes UA-derived mobile guess so SSR renders the right slot count
+  // and there's no resize flash on first paint. matchMedia still authoritative
+  // post-hydration (handles tablets, rotations, etc).
+  const [slotsVisible, setSlotsVisible] = useState(
+    initialIsMobile ? SLOTS_MOBILE : SLOTS_DESKTOP,
+  );
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 640px)");
